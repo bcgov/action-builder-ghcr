@@ -34,7 +34,7 @@ inputs:
     default: ${{ github.event.repository.default_branch }}
   keep_regex:
     description: Regex for tags to ignore (not delete); defaults to prod, test and semvers
-    default: "^(prod|test|v(\d+)(\.\d+){0,2}.*)$"
+    default: '^(prod|test|(v(\d+)(\.\d+){0,2}.*))$'
   repository:
     description: Non-default repo to clone
     default: ${{ github.repository }}
