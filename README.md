@@ -1,7 +1,7 @@
 <!-- Badges -->
-[![Issues](https://img.shields.io/github/issues/bcgov-nr/action-conditional-container-builder)](/../../issues)
-[![Pull Requests](https://img.shields.io/github/issues-pr/bcgov-nr/action-conditional-container-builder)](/../../pulls)
-[![MIT License](https://img.shields.io/github/license/bcgov-nr/action-conditional-container-builder.svg)](/LICENSE)
+[![Issues](https://img.shields.io/github/issues/bcgov/action-conditional-container-builder)](/../../issues)
+[![Pull Requests](https://img.shields.io/github/issues-pr/bcgov/action-conditional-container-builder)](/../../pulls)
+[![MIT License](https://img.shields.io/github/license/bcgov/action-conditional-container-builder.svg)](/LICENSE)
 [![Lifecycle](https://img.shields.io/badge/Lifecycle-Experimental-339999)](https://github.com/bcgov/repomountie/blob/master/doc/lifecycle-badges.md)
 
 # Conditional Container Builder with Fallback
@@ -21,7 +21,7 @@ Only GitHub Container Registry (ghcr.io) is supported so far.
 # Usage
 
 ```yaml
-- uses: bcgov-nr/action-builder-ghcr@vX.Y.X
+- uses: bcgov/action-builder-ghcr@vX.Y.X
   with:
     ### Required
 
@@ -105,7 +105,7 @@ jobs:
     steps:
       - uses: actions/checkout@v3
       - name: Builds
-        uses: bcgov-nr/action-builder-ghcr@vX.Y.Z
+        uses: bcgov/action-builder-ghcr@vX.Y.Z
         with:
           package: frontend
           keep_versions: 50
@@ -139,7 +139,7 @@ jobs:
     steps:
       - uses: actions/checkout@v3
       - name: Builds
-        uses: bcgov-nr/action-builder-ghcr@vX.Y.Z
+        uses: bcgov/action-builder-ghcr@vX.Y.Z
         with:
           package: frontend
           build_context: ./
@@ -183,7 +183,7 @@ jobs:
     steps:
       - uses: actions/checkout@v3
       - name: Test Builds
-        uses: bcgov-nr/action-builder-ghcr@vX.Y.Z
+        uses: bcgov/action-builder-ghcr@vX.Y.Z
         with:
           package: ${{ matrix.package }}
           tag: ${{ github.event.number }}
@@ -200,7 +200,7 @@ Returns digests for the new and previous images, if available.  This applies to 
 
 ```yaml
 - id: meaningful_id_name
-  uses: bcgov-nr/action-builder-ghcr@vX.Y.Z
+  uses: bcgov/action-builder-ghcr@vX.Y.Z
   ...
 
 - name: Echo digest
@@ -214,7 +214,7 @@ Has an image been built?  [true|false]
 
 ```yaml
 - id: meaningful_id_name
-  uses: bcgov-nr/action-builder-ghcr@vX.Y.Z
+  uses: bcgov/action-builder-ghcr@vX.Y.Z
   ...
 
 - name: Echo build trigger
