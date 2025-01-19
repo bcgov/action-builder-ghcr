@@ -97,7 +97,7 @@ runs:
 
     # Send triggers to diff action
     - id: diff
-      uses: bcgov-nr/action-diff-triggers@v0.2.0
+      uses: bcgov/action-diff-triggers@v0.2.0
       with:
         triggers: ${{ inputs.triggers }}
         diff_branch: ${{ inputs.diff_branch }}
@@ -112,7 +112,7 @@ runs:
         # Check for builds
         echo "triggered=true" >> $GITHUB_OUTPUT
         if [ "${{ steps.diff.outputs.triggered }}" == "true" ]; then
-          echo "Build triggered. Used bcgov-nr/action-diff-triggers."
+          echo "Build triggered. Used bcgov/action-diff-triggers."
         elif [ "${{ inputs.repository }}" != "${{ github.repository }}" ]; then
           echo "Build triggered.  Override repository provided."
         elif [ -z "${{ inputs.tag_fallback }}" ]; then
