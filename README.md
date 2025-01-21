@@ -1,7 +1,7 @@
 <!-- Badges -->
-[![Issues](https://img.shields.io/github/issues/bcgov/action-conditional-container-builder)](/../../issues)
-[![Pull Requests](https://img.shields.io/github/issues-pr/bcgov/action-conditional-container-builder)](/../../pulls)
-[![MIT License](https://img.shields.io/github/license/bcgov/action-conditional-container-builder.svg)](/LICENSE)
+[![Issues](https://img.shields.io/github/issues/bcgov/action-builder-ghcr)](/../../issues)
+[![Pull Requests](https://img.shields.io/github/issues-pr/bcgov/action-builder-ghcr)](/../../pulls)
+[![MIT License](https://img.shields.io/github/license/bcgov/action-builder-ghcr.svg)](/LICENSE)
 [![Lifecycle](https://img.shields.io/badge/Lifecycle-Experimental-339999)](https://github.com/bcgov/repomountie/blob/master/doc/lifecycle-badges.md)
 
 # Conditional Container Builder with Fallback
