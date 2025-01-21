@@ -101,7 +101,7 @@ jobs:
   builds:
     permissions:
       packages: write
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v3
       - name: Builds
@@ -135,7 +135,7 @@ jobs:
   builds:
     permissions:
       packages: write
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v3
       - name: Builds
@@ -171,7 +171,7 @@ jobs:
   builds:
     permissions:
       packages: write
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     strategy:
       matrix:
         package: [backend, frontend]
