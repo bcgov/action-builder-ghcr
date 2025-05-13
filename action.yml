@@ -62,7 +62,7 @@ runs:
     - name: GHCR Cleanup
       if: inputs.keep_versions
       continue-on-error: true # Stop fail if no versions to delete
-      uses: actions/delete-package-versions@v5.0.0
+      uses: actions/delete-package-versions@e5bc658cc4c965c472efe991f8beea3981499c55 # v5.0.0
       with:
         package-name: "${{ github.event.repository.name }}/${{ inputs.package }}"
         package-type: "container"
@@ -97,7 +97,7 @@ runs:
 
     # Send triggers to diff action
     - id: diff
-      uses: bcgov/action-diff-triggers@v0.2.0
+      uses: bcgov/action-diff-triggers@0d193029efd26c76aeacaa84aba3328de8198370 # v0.2.0
       with:
         triggers: ${{ inputs.triggers }}
         diff_branch: ${{ inputs.diff_branch }}
@@ -126,7 +126,7 @@ runs:
 
     # If a build is not required, reuse a previous image
     - name: Recycle/retag Previous Images
-      uses: shrink/actions-docker-registry-tag@v4
+      uses: shrink/actions-docker-registry-tag@f04afd0559f66b288586792eb150f45136a927fa # v4
       if: steps.build.outputs.triggered != 'true'
       with:
         registry: ghcr.io
@@ -143,7 +143,7 @@ runs:
         echo "digest=${DIGEST}" >> $GITHUB_OUTPUT
 
     # If a build is required, then checkout, login, build and push!
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
       with:
         repository: ${{ inputs.repository }}
 
@@ -162,11 +162,11 @@ runs:
 
     - name: Set up Docker Buildx
       if: steps.build.outputs.triggered == 'true'
-      uses: docker/setup-buildx-action@v3
+      uses: docker/setup-buildx-action@b5ca514318bd6ebac0fb2aedd5d36ec1b5c232a2 # v3
 
     - name: Log in to the Container registry
       if: steps.build.outputs.triggered == 'true'
-      uses: docker/login-action@v3
+      uses: docker/login-action@74a5d142397b4f367a81961eba4e8cd7edddf772 # v3
       with:
         registry: ghcr.io
         username: ${{ github.actor }}
@@ -174,7 +174,7 @@ runs:
 
     - name: Build and push ${{ inputs.package }} Docker image
       if: steps.build.outputs.triggered == 'true'
-      uses: docker/build-push-action@v6
+      uses: docker/build-push-action@14487ce63c7a62a4a324b0bfb37086795e31c6c1 # v6
       with:
         context: ${{ steps.vars.outputs.build_context }}
         file: ${{ steps.vars.outputs.build_file }}
@@ -187,7 +187,7 @@ runs:
     # Action repo needs to be present for cleanup/tests
     - name: Checkout local repo to make sure action.yml is present
       if: github.repository != inputs.repository
-      uses: actions/checkout@v4
+      uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
 
     # Get the digest of the built image
     - name: Return digest of the built image
