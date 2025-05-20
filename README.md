@@ -205,8 +205,7 @@ Returns digests for the new and previous images, if available.  This applies to 
 
 - name: Echo digest
   run: |
-    echo "Digest, new: ${{ steps.meaningful_id_name.outputs.digest }}"
-    echo "Digest, old: ${{ steps.meaningful_id_name.outputs.digest_old }}"
+    echo "Digest: ${{ steps.meaningful_id_name.outputs.digest }}"
   ...
 ```
 
