@@ -173,7 +173,9 @@ runs:
         echo "ENV BUILDER_IMAGE=ghcr.io/${{ github.repository }}/${{ inputs.package }}" >> ${{ env.dockerfile }}
         echo "ENV BUILDER_PACKAGE=${{ inputs.package }}" >> ${{ env.dockerfile }}
         echo "ENV BUILDER_REPO=${{ github.repository }}" >> ${{ env.dockerfile }}
-        echo "ENV BUILDER_TAGS=\"${{ inputs.tags }}\"" >> ${{ env.dockerfile }}  # Handle multiline input
+        # Convert multiline tags to a single comma-separated string for BUILDER_TAGS
+        TAGS_COMMA=$(echo "${{ inputs.tags }}" | tr '\n' ',' | tr -s ',' | sed 's/,$//')
+        echo "ENV BUILDER_TAGS=$TAGS_COMMA" >> ${{ env.dockerfile }}
 
     - name: Set up Docker Buildx
       if: steps.build.outputs.triggered == 'true'
