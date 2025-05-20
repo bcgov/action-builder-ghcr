@@ -21,11 +21,7 @@ jobs:
           package: backend
           keep_versions: 10
           repository: bcgov/quickstart-openshift
-          tag: |
-            ${{ github.event.number }}
-            testing
-            many-tags
-            delete-it
+          tag: ${{ github.event.number }}
 
 
   # Anything can be retagged if a fallback image exists (e.g. test)
