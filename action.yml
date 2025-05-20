@@ -10,6 +10,7 @@ inputs:
     description: Package name; e.g. backend, frontend
     required: true
   tags:
+    default: ${{ github.event.number }}
     description: |
       Default tag(s); e.g. pr#, test, prod.
       Supports multiline input for multiple tags. 
