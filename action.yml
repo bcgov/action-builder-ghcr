@@ -104,7 +104,7 @@ runs:
 
         # Bug - Docker build hates images with capital letters
         # Convert multiline tags input to a comma-separated list of full image paths (lowercase, no spaces)
-        TAGS=$(echo "${{ inputs.tags }}" | tr '[:upper:]' '[:lower:]' | sed "s/^/ghcr.io\/${{ github.repository }}\/${{ inputs.package }}:/g" | tr -d ' ' | paste -sd, -)
+        TAGS=$(echo "${{ inputs.tags }}" | tr '[:upper:]' '[:lower:]' | sed "s/^/ghcr.io\/${{ github.repository }}\/${{ inputs.package }}:/" | tr -d ' ' | paste -sd, -)
         echo "tags=${TAGS}" >> $GITHUB_OUTPUT
 
     # Send triggers to diff action
