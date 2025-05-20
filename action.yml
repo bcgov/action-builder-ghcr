@@ -44,6 +44,8 @@ inputs:
   repository:
     description: Non-default repo to clone
     default: ${{ github.repository }}
+  tag:
+    description: Deprecated input; use tags instead
   token:
     description: Specify token (GH or PAT), instead of inheriting one from the calling workflow
     default: ${{ github.token }}
@@ -76,6 +78,12 @@ runs:
       shell: bash
       run: |
         # Inputs and variables
+
+        # If inputs.tag is provided say it has been deprecated and exit 1
+        if [ ! -z "${{ inputs.tag }}" ]; then
+          echo "Input 'tag' is deprecated.  Please use 'tags' instead."
+          exit 1
+        fi
 
         # Use package folder as build_context unless an override has been provided
         if [ -z ${{ inputs.build_context }} ]; then
