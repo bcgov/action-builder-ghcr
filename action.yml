@@ -10,7 +10,13 @@ inputs:
     description: Package name; e.g. backend, frontend
     required: true
   tag:
-    description: Default tag; e.g. pr#, test, prod
+    description: |
+      Default tag(s); e.g. pr#, test, prod.
+      Supports multiline input for multiple tags. Example:
+        tag: |
+          pr123
+          latest
+          test
     required: true
 
   ### Typical / recommended
@@ -128,7 +134,8 @@ runs:
         registry: ghcr.io
         repository: ${{ inputs.repository }}/${{ inputs.package }}
         target: ${{ inputs.tag_fallback }}
-        tags: ${{ inputs.tag }}
+        tags: |
+          ${{ inputs.tag }}
 
     # If a build is required, then checkout, login, build and push!
     - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
@@ -143,10 +150,11 @@ runs:
       run: |
         # Add build envars to Dockerfile (pad for missing line endings!)
         echo "" >> ${{ env.dockerfile }}
-        echo "ENV BUILDER_IMAGE=ghcr.io/${{ github.repository }}/${{ inputs.package }}:${{ inputs.tag }}" >> ${{ env.dockerfile }}
+        echo "ENV BUILDER_IMAGE=ghcr.io/${{ github.repository }}/${{ inputs.package }}" >> ${{ env.dockerfile }}
         echo "ENV BUILDER_PACKAGE=${{ inputs.package }}" >> ${{ env.dockerfile }}
         echo "ENV BUILDER_REPO=${{ github.repository }}" >> ${{ env.dockerfile }}
-        echo "ENV BUILDER_TAG=${{ inputs.tag }}" >> ${{ env.dockerfile }}
+        # Properly quote BUILDER_TAGS to preserve multiline input
+        echo "ENV BUILDER_TAGS=\"${{ inputs.tag }}\"" >> ${{ env.dockerfile }}
 
     - name: Set up Docker Buildx
       if: steps.build.outputs.triggered == 'true'
