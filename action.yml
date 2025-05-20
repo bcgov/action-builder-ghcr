@@ -10,7 +10,7 @@ inputs:
     description: Package name; e.g. backend, frontend
     required: true
   tag:
-    description: Default tag; e.g. pr#, test, prod
+    description: Default tag; e.g. pr#, test, prod, multuline string accepted.
     required: true
 
   ### Typical / recommended
@@ -75,25 +75,36 @@ runs:
       run: |
         # Inputs and variables
 
-        # Use package folder as build_context unless an override has been provided
-        if [ -z ${{ inputs.build_context }} ]; then
-          BUILD_CONTEXT=${{ inputs.package }}
-        else
-          BUILD_CONTEXT=${{ inputs.build_context }}
-        fi
-        echo "build_context=${BUILD_CONTEXT}" >> $GITHUB_OUTPUT
+          # Use package folder as build_context unless an override has been provided
+          if [ -z "${{ inputs.build_context }}" ]; then
+            BUILD_CONTEXT=${{ inputs.package }}
+          else
+            BUILD_CONTEXT=${{ inputs.build_context }}
+          fi
+          echo "build_context=${BUILD_CONTEXT}" >> $GITHUB_OUTPUT
 
-        # Use BUILD_CONTEXT/Dockerfile as build_file unless an override has been provided
-        if [ -z ${{ inputs.build_file }} ]; then
-          BUILD_FILE=${BUILD_CONTEXT}/Dockerfile
-        else
-          BUILD_FILE=${{ inputs.build_file }}
-        fi
-        echo "build_file=${BUILD_FILE}" >> $GITHUB_OUTPUT
+          # Use BUILD_CONTEXT/Dockerfile as build_file unless an override has been provided
+          if [ -z "${{ inputs.build_file }}" ]; then
+            BUILD_FILE=${BUILD_CONTEXT}/Dockerfile
+          else
+            BUILD_FILE=${{ inputs.build_file }}
+          fi
+          echo "build_file=${BUILD_FILE}" >> $GITHUB_OUTPUT
 
-        # Bug - Docker build hates images with capital letters
-        TAGS=$( echo "ghcr.io/${{ github.repository }}/${{ inputs.package }}:${{ inputs.tag }}" | tr '[:upper:]' '[:lower:]' )
-        echo "tags=${TAGS//[$'\r\n ']}" >> $GITHUB_OUTPUT
+          # Add some extra tags on top of provided tag with multiline string support
+          TAGS="latest
+          ${{ github.sha }}"
+          if [ -n "${{ inputs.tag }}" ]; then
+            TAGS="${TAGS}
+                ${{ inputs.tag }}"
+          fi
+          if [ -n "${{ github.event.number }}" ]; then
+            TAGS="${TAGS}
+                ${{ github.event.number }}"
+          fi
+          echo -e "tags<<EOF" >> $GITHUB_OUTPUT
+          echo -e "${TAGS}" >> $GITHUB_OUTPUT
+          echo -e "EOF" >> $GITHUB_OUTPUT
 
     # Send triggers to diff action
     - id: diff
@@ -132,14 +143,16 @@ runs:
         registry: ghcr.io
         repository: ${{ inputs.repository }}/${{ inputs.package }}
         target: ${{ inputs.tag_fallback }}
-        tags: ${{ inputs.tag }}
+        tags: | 
+          ${{ steps.vars.outputs.tags }}
 
     # If a build is required and replaces a previous image, save its SHA
     - name: Check for a previous SHA
       id: digest_old
+      if: github.event=='pull_request'
       shell: bash
       run: |
-        DIGEST=$((docker manifest inspect ${{ steps.vars.outputs.tags }} || echo )| jq -r '.manifests[0].digest')
+        DIGEST=$((docker manifest inspect ghcr.io/${{ github.repository }}/${{ inputs.package }}:${{ github.event.number }} || echo )| jq -r '.manifests[0].digest')
         echo "digest=${DIGEST}" >> $GITHUB_OUTPUT
 
     # If a build is required, then checkout, login, build and push!
@@ -155,10 +168,10 @@ runs:
       run: |
         # Add build envars to Dockerfile (pad for missing line endings!)
         echo "" >> ${{ env.dockerfile }}
-        echo "ENV BUILDER_IMAGE=ghcr.io/${{ github.repository }}/${{ inputs.package }}:${{ inputs.tag }}" >> ${{ env.dockerfile }}
+        echo "ENV BUILDER_IMAGE=ghcr.io/${{ github.repository }}/${{ inputs.package }}:latest" >> ${{ env.dockerfile }}
         echo "ENV BUILDER_PACKAGE=${{ inputs.package }}" >> ${{ env.dockerfile }}
         echo "ENV BUILDER_REPO=${{ github.repository }}" >> ${{ env.dockerfile }}
-        echo "ENV BUILDER_TAG=${{ inputs.tag }}" >> ${{ env.dockerfile }}
+        echo "ENV BUILDER_TAG=${{ steps.vars.outputs.tags }}" >> ${{ env.dockerfile }}
 
     - name: Set up Docker Buildx
       if: steps.build.outputs.triggered == 'true'
@@ -179,7 +192,8 @@ runs:
         context: ${{ steps.vars.outputs.build_context }}
         file: ${{ steps.vars.outputs.build_file }}
         push: true
-        tags: ${{ steps.vars.outputs.tags }}
+        tags: |
+          ${{ steps.vars.outputs.tags }}
         cache-from: type=gha
         cache-to: type=gha,mode=max
         build-args: ${{ inputs.build_args }}
@@ -194,7 +208,7 @@ runs:
       id: digest_new
       shell: bash
       run: |
-        DIGEST=$(docker manifest inspect ${{ steps.vars.outputs.tags }} | jq -r '.manifests[0].digest')
+        DIGEST=$(docker manifest inspect ghcr.io/${{ github.repository }}/${{ inputs.package }}:latest | jq -r '.manifests[0].digest')
         echo "digest=${DIGEST}" >> $GITHUB_OUTPUT
 
     - shell: bash
