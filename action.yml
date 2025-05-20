@@ -191,7 +191,9 @@ runs:
       id: digest
       shell: bash
       run: |
-        DIGEST=$(docker manifest inspect ${{ steps.vars.outputs.tags }} | jq -r '.manifests[0].digest')
+        # Get the digest of the first image in the comma-separated tags list
+        FIRST_TAG=$(echo "${{ steps.vars.outputs.tags }}" | cut -d, -f1)
+        DIGEST=$(docker manifest inspect "$FIRST_TAG" | jq -r '.manifests[0].digest')
         echo "digest=${DIGEST}" >> $GITHUB_OUTPUT
 
     - shell: bash
