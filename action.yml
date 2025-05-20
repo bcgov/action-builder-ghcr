@@ -47,10 +47,6 @@ outputs:
     description: 'Digest of the built image; e.g. sha256:1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef'
     value: ${{ steps.digest_new.outputs.digest }}
 
-  digest_old:
-    description: 'Digest of the previous image, if one existed'
-    value: ${{ steps.digest_old.outputs.digest }}
-
   triggered:
     description: Did a deployment trigger?  [true|false]
     value: ${{ steps.diff.outputs.triggered }}
@@ -134,14 +130,6 @@ runs:
         target: ${{ inputs.tag_fallback }}
         tags: ${{ inputs.tag }}
 
-    # If a build is required and replaces a previous image, save its SHA
-    - name: Check for a previous SHA
-      id: digest_old
-      shell: bash
-      run: |
-        DIGEST=$((docker manifest inspect ${{ steps.vars.outputs.tags }} || echo )| jq -r '.manifests[0].digest')
-        echo "digest=${DIGEST}" >> $GITHUB_OUTPUT
-
     # If a build is required, then checkout, login, build and push!
     - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
       with:
@@ -201,5 +189,4 @@ runs:
       run: |
         # Summary
         echo "digest_new: ${{ steps.digest_new.outputs.digest }}"
-        echo "digest_old: ${{ steps.digest_old.outputs.digest }}"
         echo "triggered: ${{ steps.diff.outputs.triggered }}"
