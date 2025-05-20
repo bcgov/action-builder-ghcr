@@ -45,7 +45,7 @@ inputs:
 outputs:
   digest:
     description: 'Digest of the built image; e.g. sha256:1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef'
-    value: ${{ steps.digest_new.outputs.digest }}
+    value: ${{ steps.digest.outputs.digest }}
 
   triggered:
     description: Did a deployment trigger?  [true|false]
@@ -179,7 +179,7 @@ runs:
 
     # Get the digest of the built image
     - name: Return digest of the built image
-      id: digest_new
+      id: digest
       shell: bash
       run: |
         DIGEST=$(docker manifest inspect ${{ steps.vars.outputs.tags }} | jq -r '.manifests[0].digest')
@@ -188,5 +188,5 @@ runs:
     - shell: bash
       run: |
         # Summary
-        echo "digest_new: ${{ steps.digest_new.outputs.digest }}"
+        echo "digest: ${{ steps.digest.outputs.digest }}"
         echo "triggered: ${{ steps.diff.outputs.triggered }}"
