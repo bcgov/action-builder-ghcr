@@ -59,7 +59,7 @@ jobs:
         run: |
           # Verify outputs
           echo "Outputs: ${{ toJSON(steps.retag.outputs) }}"
-          if [ "-z ${{ steps.retag.outputs.digest }}" ]|| [ "${{ steps.retag.outputs.triggered }}" != "true" ]; then
+          if [ -z "${{ steps.retag.outputs.digest }}" ] || [ "${{ steps.retag.outputs.triggered }}" != "true" ]; then
             echo "Error!  Verify outputs."
             exit 1
           fi
