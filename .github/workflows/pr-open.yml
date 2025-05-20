@@ -31,7 +31,7 @@ jobs:
         run: |
           # Verify outputs
           echo "Outputs: ${{ toJSON(steps.build.outputs) }}"
-          if [ "${{ steps.build.outputs.digest }}" != "true" ]|| [ "${{ steps.build.outputs.triggered }}" != "true" ]; then
+          if [ -z "${{ steps.build.outputs.digest }}" ] || [ "${{ steps.build.outputs.triggered }}" != "true" ]; then
             echo "Error!  Verify outputs."
             exit 1
           fi
@@ -59,7 +59,7 @@ jobs:
         run: |
           # Verify outputs
           echo "Outputs: ${{ toJSON(steps.retag.outputs) }}"
-          if [ "${{ steps.retag.outputs.digest }}" != "true" ]|| [ "${{ steps.retag.outputs.triggered }}" != "true" ]; then
+          if [ "-z ${{ steps.retag.outputs.digest }}" ]|| [ "${{ steps.retag.outputs.triggered }}" != "true" ]; then
             echo "Error!  Verify outputs."
             exit 1
           fi
@@ -86,7 +86,7 @@ jobs:
         run: |
           # Verify outputs
           echo "Outputs: ${{ toJSON(steps.advanced.outputs) }}"
-          if [ "${{ steps.advanced.outputs.digest }}" != "true" ]|| [ "${{ steps.advanced.outputs.triggered }}" != "true" ]; then
+          if [ -z "${{ steps.advanced.outputs.digest }}" ]|| [ "${{ steps.advanced.outputs.triggered }}" != "true" ]; then
             echo "Error!  Verify outputs."
             exit 1
           fi
