@@ -93,14 +93,14 @@ runs:
 
           # Add some extra tags on top of provided tag with multiline string support
           TAGS="latest
-          ${{ github.sha }}"
+            ${{ github.sha }}"
           if [ -n "${{ inputs.tag }}" ]; then
             TAGS="${TAGS}
-                ${{ inputs.tag }}"
+                  ${{ inputs.tag }}"
           fi
           if [ -n "${{ github.event.number }}" ]; then
             TAGS="${TAGS}
-                ${{ github.event.number }}"
+                  ${{ github.event.number }}"
           fi
           echo -e "tags<<EOF" >> $GITHUB_OUTPUT
           echo -e "${TAGS}" >> $GITHUB_OUTPUT
@@ -171,7 +171,7 @@ runs:
         echo "ENV BUILDER_IMAGE=ghcr.io/${{ github.repository }}/${{ inputs.package }}:latest" >> ${{ env.dockerfile }}
         echo "ENV BUILDER_PACKAGE=${{ inputs.package }}" >> ${{ env.dockerfile }}
         echo "ENV BUILDER_REPO=${{ github.repository }}" >> ${{ env.dockerfile }}
-        echo "ENV BUILDER_TAG=${{ steps.vars.outputs.tags }}" >> ${{ env.dockerfile }}
+        echo "ENV BUILDER_TAG=latest" >> ${{ env.dockerfile }}
 
     - name: Set up Docker Buildx
       if: steps.build.outputs.triggered == 'true'
