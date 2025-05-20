@@ -21,7 +21,10 @@ jobs:
           package: backend
           keep_versions: 10
           repository: bcgov/quickstart-openshift
-          tags: ${{ github.event.number }}
+          tags: |
+            ${{ github.event.number }}
+            ${{ github.event.number }}-multiline
+            pr-latest
 
   # Anything can be retagged if a fallback image exists (e.g. test)
   retag:
