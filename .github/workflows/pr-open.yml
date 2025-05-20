@@ -21,7 +21,7 @@ jobs:
           package: backend
           keep_versions: 10
           repository: bcgov/quickstart-openshift
-          tag: ${{ github.event.number }}
+          tags: ${{ github.event.number }}
 
   # Anything can be retagged if a fallback image exists (e.g. test)
   retag:
@@ -37,7 +37,7 @@ jobs:
           package: backend
           keep_versions: 10
           repository: bcgov/quickstart-openshift
-          tag: ${{ github.event.number }}-retag
+          tags: ${{ github.event.number }}-retag
           tag_fallback: test
           triggers: ('backend/')
 
@@ -57,4 +57,4 @@ jobs:
           build_file: api/Dockerfile
           keep_versions: 10
           repository: bcgov/nr-fom
-          tag: ${{ github.event.number }}
+          tags: ${{ github.event.number }}

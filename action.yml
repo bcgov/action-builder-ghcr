@@ -9,14 +9,14 @@ inputs:
   package:
     description: Package name; e.g. backend, frontend
     required: true
-  tag:
+  tags:
     description: |
       Default tag(s); e.g. pr#, test, prod.
-      Supports multiline input for multiple tags. Example:
-        tag: |
-          pr123
-          latest
-          test
+      Supports multiline input for multiple tags. 
+      Example: |
+        pr123
+        demo
+        test
     required: true
 
   ### Typical / recommended
@@ -95,7 +95,7 @@ runs:
 
         # Bug - Docker build hates images with capital letters
         # Convert multiline tag input to a comma-separated list of full image paths (lowercase, no spaces)
-        TAGS=$(echo "${{ inputs.tag }}" | tr '[:upper:]' '[:lower:]' | sed "s/^/ghcr.io\/${{ github.repository }}\/${{ inputs.package }}:/" | tr -d ' ' | paste -sd, -)
+        TAGS=$(echo "${{ inputs.tags }}" | tr '[:upper:]' '[:lower:]' | sed "s/^/ghcr.io\/${{ github.repository }}\/${{ inputs.package }}:/" | tr -d ' ' | paste -sd, -)
         echo "tags=${TAGS}" >> $GITHUB_OUTPUT
 
     # Send triggers to diff action
@@ -136,7 +136,7 @@ runs:
         repository: ${{ inputs.repository }}/${{ inputs.package }}
         target: ${{ inputs.tag_fallback }}
         tags: |
-          ${{ inputs.tag }}
+          ${{ inputs.tags }}
 
     # If a build is required, then checkout, login, build and push!
     - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
@@ -154,8 +154,7 @@ runs:
         echo "ENV BUILDER_IMAGE=ghcr.io/${{ github.repository }}/${{ inputs.package }}" >> ${{ env.dockerfile }}
         echo "ENV BUILDER_PACKAGE=${{ inputs.package }}" >> ${{ env.dockerfile }}
         echo "ENV BUILDER_REPO=${{ github.repository }}" >> ${{ env.dockerfile }}
-        # Properly quote BUILDER_TAGS to preserve multiline input
-        echo "ENV BUILDER_TAGS=\"${{ inputs.tag }}\"" >> ${{ env.dockerfile }}
+        echo "ENV BUILDER_TAGS=\"${{ inputs.tags }}\"" >> ${{ env.dockerfile }}  # Handle multiline input
 
     - name: Set up Docker Buildx
       if: steps.build.outputs.triggered == 'true'
