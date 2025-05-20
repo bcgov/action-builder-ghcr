@@ -81,7 +81,7 @@ runs:
         # Inputs and variables
 
         # If inputs.tag is provided say it has been deprecated and exit 1
-        if [ ! -z "${{ inputs.tag }}" ]; then
+        if [ -n "${{ inputs.tag }}" ]; then
           echo "Input 'tag' is deprecated.  Please use 'tags' instead."
           exit 1
         fi
