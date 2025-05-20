@@ -29,9 +29,9 @@ Only GitHub Container Registry (ghcr.io) is supported so far.
     package: frontend
 
     # Tag name (<package>:<tag>)
-    tags: ${{ github.event.number }}
-
-
+    tags: |
+      pr123
+      demo
     ### Typical / recommended
 
     # Fallback tag, used if no build was generated
