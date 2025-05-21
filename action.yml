@@ -215,6 +215,11 @@ runs:
         cache-to: type=gha,mode=max
         build-args: ${{ inputs.build_args }}
 
+    # Action repo needs to be present for cleanup/tests
+    - name: Checkout local repo to make sure action.yml is present
+      if: github.repository != inputs.repository
+      uses: actions/checkout@v4
+
     # Get the digest of the built image from the build-push-action output
     - name: Return digest of the built image
       id: digest
@@ -227,27 +232,6 @@ runs:
           exit 1
         fi
         echo "digest=$digest" >> $GITHUB_OUTPUT
-
-    # Action repo needs to be present for cleanup/tests
-    - name: Checkout local repo to make sure action.yml is present
-      if: github.repository != inputs.repository
-      uses: actions/checkout@v4
-
-    # Get the digest of the built image
-    - name: Return digest of the built image
-      id: digest
-      shell: bash
-      run: |
-        set -euo pipefail  # Robust error handling for all script steps
-        # Get the manifest list digest (top-level digest) for the image just pushed
-        first_tag=$(echo "${{ steps.vars.outputs.tags_csv }}" | cut -d, -f1)
-        # Use buildx imagetools inspect to get the manifest list digest
-        digest=$(docker buildx imagetools inspect "$first_tag" | grep Digest | head -n1 | awk '{print $2}')
-        if [ -z "$digest" ] || [ "$digest" = "null" ]; then
-          echo "Error: Could not retrieve manifest list digest for $first_tag" >&2
-          exit 1
-        fi
-        echo "digest=${digest}" >> $GITHUB_OUTPUT
 
     - name: Validate digest by pulling image
       shell: bash
