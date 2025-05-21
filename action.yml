@@ -226,11 +226,9 @@ runs:
       if: steps.build.outputs.triggered == 'true'
       shell: bash
       run: |
-        # Validate digest
-        set -euo pipefail
-
-        if ! docker pull "$IMAGE"; then
-          echo "Error: Failed to pull $IMAGE" >&2
+        # Validate digest using docker manifest inspect (faster than docker pull)
+        if ! docker manifest inspect "$IMAGE" > /dev/null; then
+          echo "Error: Failed to inspect manifest for $IMAGE" >&2
           exit 1
         fi
 
