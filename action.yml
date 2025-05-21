@@ -190,7 +190,7 @@ runs:
         context: ${{ steps.vars.outputs.build_context }}
         file: ${{ steps.vars.outputs.build_file }}
         push: true
-        tags: ${{ steps.vars.outputs.tags }}
+        tags: ${{ steps.vars.outputs.tags_joined }}
         cache-from: type=gha
         cache-to: type=gha,mode=max
         build-args: ${{ inputs.build_args }}
@@ -206,7 +206,7 @@ runs:
       shell: bash
       run: |
         # Get the digest of the first image in the comma-separated tags list
-        FIRST_TAG=$(echo "${{ steps.vars.outputs.tags }}" | cut -d, -f1)
+        FIRST_TAG=$(echo "${{ steps.vars.outputs.tags_joined }}" | cut -d, -f1)
         DIGEST=$(docker manifest inspect "$FIRST_TAG" | jq -r '.manifests[0].digest')
         echo "digest=${DIGEST}" >> $GITHUB_OUTPUT
 
