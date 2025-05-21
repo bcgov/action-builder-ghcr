@@ -77,7 +77,8 @@ Only GitHub Container Registry (ghcr.io) is supported so far.
 
     ### Deprecated
 
-    # Single-value tag input has been replaced with inputs.tags, which can handle multiple values
+    # Single-value tag input has been deprecated and will be removed in a future release
+    # Please use inputs.tags, which can handle multiple values
     tag: do not use!
 
 ```
