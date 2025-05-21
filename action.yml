@@ -76,6 +76,11 @@ runs:
 
     # Process variables and inputs (optimized)
     - id: vars
+      env:
+        INPUT_BUILD_CONTEXT: ${{ inputs.build_context }}
+        INPUT_BUILD_FILE: ${{ inputs.build_file }}
+        INPUT_PACKAGE: ${{ inputs.package }}
+        GITHUB_REPOSITORY: ${{ github.repository }}
       shell: bash
       run: |
         # Early exit for deprecated input
@@ -85,16 +90,16 @@ runs:
         fi
 
         # Set build context and file with defaults
-        BUILD_CONTEXT="${{ inputs.build_context:-${{ inputs.package }}}}"
-        BUILD_FILE="${{ inputs.build_file:-${BUILD_CONTEXT}/Dockerfile}}"
+        build_context="${INPUT_BUILD_CONTEXT:-$INPUT_PACKAGE}"
+        build_file="${INPUT_BUILD_FILE:-${BUILD_CONTEXT}/Dockerfile}"
 
         # Process tags into comma-separated list of full image paths
         TAGS=""
         while IFS= read -r tag || [ -n "$tag" ]; do
           tag_clean=$(echo "$tag" | tr '[:upper:]' '[:lower:]' | tr -d ' ')
           [ -z "$tag_clean" ] && continue
-          full_tag="ghcr.io/${{ github.repository }}/${{ inputs.package }}:$tag_clean"
-          tags="${tags:+$tags,}$full_tag"
+          full_tag="ghcr.io/${GITHUB_REPOSITORY}/${INPUT_PACKAGE}:$tag_clean"
+          tags="${tags:-$full_tag:+$tags,}$full_tag"
         done <<< "${{ inputs.tags }}"
 
         # Output all variables at once, and verify they are set
@@ -163,6 +168,7 @@ runs:
         echo "ENV BUILDER_IMAGE=ghcr.io/${{ github.repository }}/${{ inputs.package }}" >> ${{ env.dockerfile }}
         echo "ENV BUILDER_PACKAGE=${{ inputs.package }}" >> ${{ env.dockerfile }}
         echo "ENV BUILDER_REPO=${{ github.repository }}" >> ${{ env.dockerfile }}
+
         # Convert multiline tags to a single comma-separated string for BUILDER_TAGS
         TAGS_COMMA=$(echo "${{ inputs.tags }}" | tr '\n' ',' | tr -s ',' | sed 's/,$//')
         echo "ENV BUILDER_TAGS=\"$TAGS_COMMA\"" >> ${{ env.dockerfile }}
