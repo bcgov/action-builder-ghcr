@@ -23,7 +23,7 @@ inputs:
     default: ${{ github.event.number }}
     description: |
       Default tag(s); e.g. pr#, test, prod.
-      Supports multiline input for multiple tags. 
+      Supports multiline input for multiple tags.
       Example: |
         pr123
         demo

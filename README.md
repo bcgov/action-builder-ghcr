@@ -108,14 +108,11 @@ jobs:
         uses: bcgov/action-builder-ghcr@vX.Y.Z
         with:
           package: frontend
-          keep_versions: 50
-          tags: ${{ github.event.number }}
           tag_fallback: test
-          token: ${{ secrets.GITHUB_TOKEN }}
           triggers: ('frontend/')
 ```
 
-# Example, Single Build with build_context and build_file
+# Example, Single Build with build_context, build_file, keep_versions and multiple tags
 
 Same as previous, but specifying build folder and Dockerfile.
 
@@ -145,7 +142,10 @@ jobs:
           build_context: ./
           build_file: subdir/Dockerfile
           keep_versions: 50
-          tags: ${{ github.event.number }}
+          tags: |
+            ${{ github.event.number }}
+            ${{ github.sha }}
+            latest
           tag_fallback: test
           token: ${{ secrets.GITHUB_TOKEN }}
           triggers: ('frontend/')
@@ -199,26 +199,26 @@ jobs:
 Returns digests for the new and previous images, if available.  This applies to build and retags.
 
 ```yaml
-- id: meaningful_id_name
+- id: digest
   uses: bcgov/action-builder-ghcr@vX.Y.Z
   ...
 
 - name: Echo digest
   run: |
-    echo "Digest: ${{ steps.meaningful_id_name.outputs.digest }}"
+    echo "Digest: ${{ steps.digest.outputs.digest }}"
   ...
 ```
 
 Has an image been built?  [true|false]
 
 ```yaml
-- id: meaningful_id_name
+- id: digest
   uses: bcgov/action-builder-ghcr@vX.Y.Z
   ...
 
 - name: Echo build trigger
   run: |
-    echo "Trigger result: ${{ steps.meaningful_id_name.outputs.triggered }}"
+    echo "Trigger result: ${{ steps.digest.outputs.triggered }}"
   ...
 ```
 
@@ -230,6 +230,12 @@ Workflows kicked off by Dependabot or a fork run with reduced permissions.  That
 permissions:
   packages: write
 ```
+
+# Deprecations
+
+- The `tag` input has been deprecated in favor of `tags`, which can handle multiple tags with a multiline string.
+- The `digest_old` output has been deprecated due to non-use.
+- The `digest_new` output has been renamed to just `digest`.
 
 <!-- # Acknowledgements
 
