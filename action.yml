@@ -170,6 +170,17 @@ runs:
         tags: |
           ${{ inputs.tags }}
 
+    # Cleanup if inputs.keep_versions provided
+    - name: GHCR Cleanup
+      if: inputs.keep_versions
+      continue-on-error: true # Stop fail if no versions to delete
+      uses: actions/delete-package-versions@v5.0.0
+      with:
+        package-name: "${{ github.event.repository.name }}/${{ inputs.package }}"
+        package-type: "container"
+        min-versions-to-keep: ${{ inputs.keep_versions }}
+        ignore-versions: "${{ inputs.keep_regex }}"
+
     - name: Add build envars to Dockerfile
       if: steps.build.outputs.triggered == 'true'
       env:
