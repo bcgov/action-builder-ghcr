@@ -16,12 +16,25 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
-      - uses: ./
+      - id: build
+        uses: ./
         with:
           package: backend
           keep_versions: 10
           repository: bcgov/quickstart-openshift
-          tag: ${{ github.event.number }}
+          tags: |
+            ${{ github.event.number }}
+            ${{ github.event.number }}-multiline
+            pr-latest
+
+      - if: steps.build.outputs.triggered != 'false'
+        run: |
+          # Verify outputs
+          echo "Outputs: ${{ toJSON(steps.build.outputs) }}"
+          if [ -z "${{ steps.build.outputs.digest }}" ] || [ "${{ steps.build.outputs.triggered }}" != "true" ]; then
+            echo "Error!  Verify outputs."
+            exit 1
+          fi
 
   # Anything can be retagged if a fallback image exists (e.g. test)
   retag:
@@ -32,15 +45,24 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
-      - uses: ./
+      - id: retag
+        uses: ./
         with:
           package: backend
           keep_versions: 10
           repository: bcgov/quickstart-openshift
-          tag: ${{ github.event.number }}-retag
+          tags: ${{ github.event.number }}-retag
           tag_fallback: test
           triggers: ('backend/')
 
+      - if: steps.retag.outputs.triggered != 'false'
+        run: |
+          # Verify outputs
+          echo "Outputs: ${{ toJSON(steps.retag.outputs) }}"
+          if [ -z "${{ steps.retag.outputs.digest }}" ] || [ "${{ steps.retag.outputs.triggered }}" != "true" ]; then
+            echo "Error!  Verify outputs."
+            exit 1
+          fi
 
   # FOM apps build from repo root, above their Dockerfiles (extra params)
   advanced:
@@ -50,11 +72,21 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
-      - uses: ./
+      - id: advanced
+        uses: ./
         with:
           package: api
           build_context: .
           build_file: api/Dockerfile
           keep_versions: 10
           repository: bcgov/nr-fom
-          tag: ${{ github.event.number }}
+          tags: ${{ github.event.number }}
+
+      - if: steps.advanced.outputs.triggered != 'false'
+        run: |
+          # Verify outputs
+          echo "Outputs: ${{ toJSON(steps.advanced.outputs) }}"
+          if [ -z "${{ steps.advanced.outputs.digest }}" ]|| [ "${{ steps.advanced.outputs.triggered }}" != "true" ]; then
+            echo "Error!  Verify outputs."
+            exit 1
+          fi

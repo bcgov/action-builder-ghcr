@@ -29,9 +29,9 @@ Only GitHub Container Registry (ghcr.io) is supported so far.
     package: frontend
 
     # Tag name (<package>:<tag>)
-    tag: ${{ github.event.number }}
-
-
+    tags: |
+      pr123
+      demo
     ### Typical / recommended
 
     # Fallback tag, used if no build was generated
@@ -109,7 +109,7 @@ jobs:
         with:
           package: frontend
           keep_versions: 50
-          tag: ${{ github.event.number }}
+          tags: ${{ github.event.number }}
           tag_fallback: test
           token: ${{ secrets.GITHUB_TOKEN }}
           triggers: ('frontend/')
@@ -145,7 +145,7 @@ jobs:
           build_context: ./
           build_file: subdir/Dockerfile
           keep_versions: 50
-          tag: ${{ github.event.number }}
+          tags: ${{ github.event.number }}
           tag_fallback: test
           token: ${{ secrets.GITHUB_TOKEN }}
           triggers: ('frontend/')
@@ -186,7 +186,7 @@ jobs:
         uses: bcgov/action-builder-ghcr@vX.Y.Z
         with:
           package: ${{ matrix.package }}
-          tag: ${{ github.event.number }}
+          tags: ${{ github.event.number }}
           tag_fallback: test
           repository: bcgov/nr-quickstart-typescript
           token: ${{ secrets.GITHUB_TOKEN }}
