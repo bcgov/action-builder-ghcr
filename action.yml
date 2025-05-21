@@ -74,6 +74,11 @@ runs:
         min-versions-to-keep: ${{ inputs.keep_versions }}
         ignore-versions: "${{ inputs.keep_regex }}"
 
+    # Checkout
+    - uses: actions/checkout@v4
+      with:
+        repository: ${{ inputs.repository }}
+
     # Process variables and inputs
     - id: vars
       shell: bash
@@ -157,11 +162,6 @@ runs:
         target: ${{ inputs.tag_fallback }}
         tags: |
           ${{ inputs.tags }}
-
-    # If a build is required, then checkout, login, build and push!
-    - uses: actions/checkout@v4
-      with:
-        repository: ${{ inputs.repository }}
 
     - name: Add build envars to Dockerfile
       if: steps.build.outputs.triggered == 'true'
