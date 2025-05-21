@@ -196,7 +196,7 @@ jobs:
 
 # Outputs
 
-Returns digests for the new and previous images, if available.  This applies to build and retags.
+New image digest (SHA).  This applies to build and retags.
 
 ```yaml
 - id: digest
