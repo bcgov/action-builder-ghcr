@@ -173,9 +173,11 @@ runs:
           ls -l "$DOCKERFILE" || true
         else
           # Add build envars to DOCKERFILE (pad for missing line endings)
-          echo "" >> "$DOCKERFILE"
-          echo "ENV BUILDER_IMAGE=ghcr.io/${{ github.repository }}/${{ inputs.package }}" >> "$DOCKERFILE"
-          echo "ENV BUILDER_TAGS=\"$(echo "${{ inputs.tags }}" | tr '\n' ' ' | xargs)\"" >> "$DOCKERFILE"
+          {
+            echo ""
+            echo "ENV BUILDER_IMAGE=ghcr.io/${{ github.repository }}/${{ inputs.package }}"
+            echo "ENV BUILDER_TAGS=\"$(echo \"${{ inputs.tags }}\" | tr '\n' ' ' | xargs)\""
+          } >> "$DOCKERFILE"
           exit 0
         fi
         exit 1
