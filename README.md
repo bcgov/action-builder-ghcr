@@ -28,20 +28,8 @@ Only GitHub Container Registry (ghcr.io) is supported so far.
     # Package name
     package: frontend
 
-    # Tag name (<package>:<tag>)
-    tags: |
-      pr123
-      demo
+
     ### Typical / recommended
-
-    # Fallback tag, used if no build was generated
-    # Optional, defaults to nothing, which forces a build
-    # Non-matching or malformed tags are rejected, which also forced a build
-    tag_fallback: test
-
-    # Bash array to diff for build triggering
-    # Optional, defaults to nothing, which forces a build
-    triggers: ('frontend/' 'backend/' 'database/')
 
     # Sets the build context/directory, which contains the build files
     # Optional, defaults to package name
@@ -51,9 +39,20 @@ Only GitHub Container Registry (ghcr.io) is supported so far.
     # Optional, defaults to {package}/Dockerfile or {build_context}/Dockerfile
     build_file: ./frontend/Dockerfile
 
-    # Number of packages to keep if cleaning up previous builds
-    # Optional, skips if not provided
-    keep_versions: 50
+    # Fallback tag, used if no build was generated
+    # Optional, defaults to nothing, which forces a build
+    # Non-matching or malformed tags are rejected, which also forced a build
+    tag_fallback: test
+
+    # Tags to apply to the image
+    # Optional, defaults to pull request number
+    tags: |
+      pr123
+      demo
+
+    # Bash array to diff for build triggering
+    # Optional, defaults to nothing, which forces a build
+    triggers: ('frontend/' 'backend/' 'database/')
 
 
     ### Usually a bad idea / not recommended
@@ -67,10 +66,6 @@ Only GitHub Container Registry (ghcr.io) is supported so far.
     # Defaults to the default branch, usually `main`
     diff_branch: ${{ github.event.repository.default_branch }}
 
-    # Regex for tags to skip when cleaning up packages; defaults to test and prod
-    # Only used when keep_versions is provided
-    keep_regex: "^(prod|test)$"
-
     # Repository to clone and process
     # Useful for consuming other repos, like in testing
     # Defaults to the current one
@@ -78,6 +73,13 @@ Only GitHub Container Registry (ghcr.io) is supported so far.
 
     # Specify token (GH or PAT), instead of inheriting one from the calling workflow
     token: ${{ secrets.GITHUB_TOKEN }}
+
+
+    ### Deprecated
+
+    # Single-value tag input has been deprecated and will be removed in a future release
+    # Please use inputs.tags, which can handle multiple values
+    tag: do not use!
 
 ```
 
@@ -108,14 +110,11 @@ jobs:
         uses: bcgov/action-builder-ghcr@vX.Y.Z
         with:
           package: frontend
-          keep_versions: 50
-          tags: ${{ github.event.number }}
           tag_fallback: test
-          token: ${{ secrets.GITHUB_TOKEN }}
           triggers: ('frontend/')
 ```
 
-# Example, Single Build with build_context and build_file
+# Example, Single Build with build_context, build_file and multiple tags
 
 Same as previous, but specifying build folder and Dockerfile.
 
@@ -144,8 +143,10 @@ jobs:
           package: frontend
           build_context: ./
           build_file: subdir/Dockerfile
-          keep_versions: 50
-          tags: ${{ github.event.number }}
+          tags: |
+            ${{ github.event.number }}
+            ${{ github.sha }}
+            latest
           tag_fallback: test
           token: ${{ secrets.GITHUB_TOKEN }}
           triggers: ('frontend/')
@@ -196,41 +197,47 @@ jobs:
 
 # Outputs
 
-Returns digests for the new and previous images, if available.  This applies to build and retags.
+New image digest (SHA).  This applies to build and retags.
 
 ```yaml
-- id: meaningful_id_name
+- id: digest
   uses: bcgov/action-builder-ghcr@vX.Y.Z
   ...
 
 - name: Echo digest
   run: |
-    echo "Digest: ${{ steps.meaningful_id_name.outputs.digest }}"
+    echo "Digest: ${{ steps.digest.outputs.digest }}"
   ...
 ```
 
 Has an image been built?  [true|false]
 
 ```yaml
-- id: meaningful_id_name
+- id: trigger
   uses: bcgov/action-builder-ghcr@vX.Y.Z
   ...
 
 - name: Echo build trigger
   run: |
-    echo "Trigger result: ${{ steps.meaningful_id_name.outputs.triggered }}"
+    echo "Trigger result: ${{ steps.trigger.outputs.triggered }}"
   ...
 ```
 
 # Permissions
 
-Workflows kicked off by Dependabot or a fork run with reduced permissions.  That can be addressed by setting explict permissions for the GITHUB_TOKEN.  If this is not required, then remove the lines below from these examples.
+It is good practice to set explicit permissions for jobs and workflows.  These are applied to the GITHUB_TOKEN.  Please see the [GitHub documentation](https://docs.github.com/en/actions/writing-workflows/choosing-what-your-workflow-does/controlling-permissions-for-github_token) for more information.
 
 ```yaml
 permissions:
   packages: write
 ```
 
+# Deprecations
+
+- The `tag` input has been deprecated in favor of `tags`, a multiline string that can handle multiple values.
+- The `digest_old` output has been deprecated due to non-use.
+- The `digest_new` output has been renamed to `digest`.
+
 <!-- # Acknowledgements
 
-This Action is provided courtesty of the Forestry Suite of Applications, part of the Government of British Columbia. -->
+This Action is provided courtesy of the Forestry Suite of Applications, part of the Government of British Columbia. -->

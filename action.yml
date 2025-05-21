@@ -9,28 +9,27 @@ inputs:
   package:
     description: Package name; e.g. backend, frontend
     required: true
-  tags:
-    default: ${{ github.event.number }}
-    description: |
-      Default tag(s); e.g. pr#, test, prod.
-      Supports multiline input for multiple tags. 
-      Example: |
-        pr123
-        demo
-        test
-    required: true
 
   ### Typical / recommended
-  tag_fallback:
-    description: Where to pull default images from; e.g. prod, test
-  triggers:
-    description: Paths used to trigger a build; e.g. ('./backend/' './frontend/)
   build_context:
     description: Build context, not required for self-contained package/default directory
   build_file:
     description: Dockerfile with path, not required for self-contained package/default directory
   keep_versions:
     description: Number of versions to keep; omit to skip
+  tag_fallback:
+    description: Where to pull default images from; e.g. prod, test
+  tags:
+    default: ${{ github.event.number }}
+    description: |
+      Default tag(s); e.g. pr#, test, prod.
+      Supports multiline input for multiple tags.
+      Example: |
+        pr123
+        demo
+        test
+  triggers:
+    description: Paths used to trigger a build; e.g. ('./backend/' './frontend/)
 
   ### Usually a bad idea / not recommended
   build_args:
@@ -106,9 +105,9 @@ runs:
         # Convert multiline tags input to a comma-separated list of full image paths (lowercase, no spaces)
         TAGS=""
         while IFS= read -r tag || [ -n "$tag" ]; do
-          tag_clean=$(echo "$tag" | tr '[:upper:]' '[:lower:]' | tr -d ' ')
-          [ -z "$tag_clean" ] && continue
-          full_tag="ghcr.io/${{ github.repository }}/${{ inputs.package }}:$tag_clean"
+          tag_lowercase=$(echo "$tag" | tr '[:upper:]' '[:lower:]' | tr -d ' ')
+          [ -z "$tag_lowercase" ] && continue
+          full_tag="ghcr.io/${{ github.repository }}/${{ inputs.package }}:$tag_lowercase"
           if [ -z "$TAGS" ]; then
             TAGS="$full_tag"
           else
