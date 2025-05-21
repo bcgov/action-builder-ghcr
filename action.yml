@@ -235,6 +235,25 @@ runs:
         fi
         echo "digest=${digest}" >> $GITHUB_OUTPUT
 
+    - name: Validate digest by pulling image
+      shell: bash
+      run: |
+        # Validate that the image with the calculated digest can be pulled
+        set -euo pipefail
+
+        digest="${{ steps.digest.outputs.digest }}"
+        repo_and_package="ghcr.io/${{ inputs.repository }}/${{ inputs.package }}"
+        if [ -z "$digest" ] || [ "$digest" = "null" ]; then
+          echo "Error: Digest is not set or is null, cannot validate image pull." >&2
+          exit 1
+        fi
+        echo "Attempting to pull $repo_and_package@$digest ..."
+        if ! docker pull "$repo_and_package@$digest"; then
+          echo "Error: Failed to pull image $repo_and_package@$digest" >&2
+          exit 1
+        fi
+        echo "Successfully pulled $repo_and_package@$digest"
+
     - name: Print summary outputs
       shell: bash
       run: |
