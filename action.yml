@@ -105,13 +105,9 @@ runs:
           exit 1
         fi
 
-        # Process tags into comma-separated list of full image paths
-        TAGS=()
-        while IFS= read -r tag || [ -n "$tag" ]; do
-          tag_clean=$(echo "$tag" | tr '[:upper:]' '[:lower:]' | tr -d ' ')
-          [ -z "$tag_clean" ] && continue
-          TAGS+=("ghcr.io/${GITHUB_REPOSITORY}/${INPUT_PACKAGE}:$tag_clean")
-        done <<< "$INPUT_TAGS"
+        # Process tags into comma-separated list of full image paths (simplified)
+        mapfile -t TAGS < <(printf '%s\n' "$INPUT_TAGS" | tr '[:upper:]' '[:lower:]' | tr -d ' ' | grep -v '^$')
+        TAGS=("${TAGS[@]/#/ghcr.io/${GITHUB_REPOSITORY}/${INPUT_PACKAGE}:}")
         TAGS_JOINED=$(IFS=, ; echo "${TAGS[*]}")
 
         # Output all variables at once, and verify they are set
