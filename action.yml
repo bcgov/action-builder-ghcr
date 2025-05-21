@@ -224,13 +224,13 @@ runs:
       id: digest
       shell: bash
       run: |
-        # Get the digest (first for multiple tags)
         set -euo pipefail  # Robust error handling for all script steps
-
+        # Get the manifest list digest (top-level digest) for the image just pushed
         first_tag=$(echo "${{ steps.vars.outputs.tags_csv }}" | cut -d, -f1)
-        digest=$(docker manifest inspect "$first_tag" | jq -r '.manifests[0].digest')
+        # Use buildx imagetools inspect to get the manifest list digest
+        digest=$(docker buildx imagetools inspect "$first_tag" | grep Digest | head -n1 | awk '{print $2}')
         if [ -z "$digest" ] || [ "$digest" = "null" ]; then
-          echo "Error: Could not retrieve digest for $first_tag" >&2
+          echo "Error: Could not retrieve manifest list digest for $first_tag" >&2
           exit 1
         fi
         echo "digest=${digest}" >> $GITHUB_OUTPUT
