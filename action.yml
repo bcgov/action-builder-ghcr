@@ -74,7 +74,7 @@ runs:
         min-versions-to-keep: ${{ inputs.keep_versions }}
         ignore-versions: "${{ inputs.keep_regex }}"
 
-    # Checkout
+    # Checkout 
     - uses: actions/checkout@v4
       with:
         repository: ${{ inputs.repository }}
@@ -99,26 +99,19 @@ runs:
         BUILD_CONTEXT="${INPUT_BUILD_CONTEXT:-$INPUT_PACKAGE}"
         BUILD_FILE="${INPUT_BUILD_FILE:-${BUILD_CONTEXT}/Dockerfile}"
 
-        # Validate Dockerfile path early, with diagnostics
-        echo "[DIAG] Checking Dockerfile path: $BUILD_FILE"
-        if [ -z "$BUILD_FILE" ]; then
-          echo "[DIAG] BUILD_FILE is not set!" >&2
-          exit 1
-        fi
-        if [ ! -e "$BUILD_FILE" ]; then
-          echo "[DIAG] Dockerfile does not exist at $BUILD_FILE" >&2
-          ls -l "$(dirname \"$BUILD_FILE\")" || echo "[DIAG] Directory does not exist: $(dirname \"$BUILD_FILE\")" >&2
-          exit 1
-        fi
-        if [ ! -w "$BUILD_FILE" ]; then
-          echo "[DIAG] Dockerfile is not writable at $BUILD_FILE" >&2
-          ls -l "$BUILD_FILE" || true
+        # Validate Dockerfile path early
+        if [ -z "$BUILD_FILE" ] || [ ! -w "$BUILD_FILE" ]; then
+          echo "Error: Dockerfile path is invalid or not writable!" >&2
           exit 1
         fi
 
-        # Process tags into comma-separated list of full image paths (simplified)
-        mapfile -t TAGS < <(printf '%s\n' "$INPUT_TAGS" | tr '[:upper:]' '[:lower:]' | tr -d ' ' | grep -v '^$')
-        TAGS=("${TAGS[@]/#/ghcr.io/${GITHUB_REPOSITORY}/${INPUT_PACKAGE}:}")
+        # Process tags into comma-separated list of full image paths
+        TAGS=()
+        while IFS= read -r tag || [ -n "$tag" ]; do
+          tag_clean=$(echo "$tag" | tr '[:upper:]' '[:lower:]' | tr -d ' ')
+          [ -z "$tag_clean" ] && continue
+          TAGS+=("ghcr.io/${GITHUB_REPOSITORY}/${INPUT_PACKAGE}:$tag_clean")
+        done <<< "$INPUT_TAGS"
         TAGS_JOINED=$(IFS=, ; echo "${TAGS[*]}")
 
         # Output all variables at once, and verify they are set
@@ -170,16 +163,9 @@ runs:
         tags: |
           ${{ inputs.tags }}
 
-    # Cleanup if inputs.keep_versions provided
-    - name: GHCR Cleanup
-      if: inputs.keep_versions
-      continue-on-error: true # Stop fail if no versions to delete
-      uses: actions/delete-package-versions@v5.0.0
+    - uses: actions/checkout@v4
       with:
-        package-name: "${{ github.event.repository.name }}/${{ inputs.package }}"
-        package-type: "container"
-        min-versions-to-keep: ${{ inputs.keep_versions }}
-        ignore-versions: "${{ inputs.keep_regex }}"
+        repository: ${{ inputs.repository }}
 
     - name: Add build envars to Dockerfile
       if: steps.build.outputs.triggered == 'true'
