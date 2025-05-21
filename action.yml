@@ -9,6 +9,16 @@ inputs:
   package:
     description: Package name; e.g. backend, frontend
     required: true
+
+  ### Typical / recommended
+  build_context:
+    description: Build context, not required for self-contained package/default directory
+  build_file:
+    description: Dockerfile with path, not required for self-contained package/default directory
+  keep_versions:
+    description: Number of versions to keep; omit to skip
+  tag_fallback:
+    description: Where to pull default images from; e.g. prod, test
   tags:
     default: ${{ github.event.number }}
     description: |
@@ -18,19 +28,8 @@ inputs:
         pr123
         demo
         test
-    required: true
-
-  ### Typical / recommended
-  tag_fallback:
-    description: Where to pull default images from; e.g. prod, test
   triggers:
     description: Paths used to trigger a build; e.g. ('./backend/' './frontend/)
-  build_context:
-    description: Build context, not required for self-contained package/default directory
-  build_file:
-    description: Dockerfile with path, not required for self-contained package/default directory
-  keep_versions:
-    description: Number of versions to keep; omit to skip
 
   ### Usually a bad idea / not recommended
   build_args:
