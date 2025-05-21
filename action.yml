@@ -223,7 +223,7 @@ runs:
     # Get the digest of the built image from the build-push-action output
     - name: Validate digest
       env:
-        DIGEST: ${{ steps.build_and_push.outputs.digest }}
+        IMAGE: ghcr.io/${{ github.repository }}/${{ inputs.package }}@${{ steps.build_and_push.outputs.digest }}
       id: digest
       if: steps.build.outputs.triggered == 'true'
       shell: bash
@@ -231,25 +231,15 @@ runs:
         # Validate digest
         set -euo pipefail
 
-        if [ -z "$DIGEST" ] || [ "$DIGEST" = "null" ]; then
-          echo "Error: Could not retrieve manifest list digest from build-push-action output" >&2
+        if ! docker pull "$IMAGE"; then
+          echo "Error: Failed to pull $IMAGE" >&2
           exit 1
         fi
-
-        # Validate that the image and digest can be pulled
-        repo_and_package="ghcr.io/${{ github.repository }}/${{ inputs.package }}"
-        echo "Attempting to pull $repo_and_package@$DIGEST ..."
-        if ! docker pull "$repo_and_package@$DIGEST"; then
-          echo "Error: Failed to pull image $repo_and_package@$DIGEST" >&2
-          exit 1
-        fi
-        echo "digest=$DIGEST" >> $GITHUB_OUTPUT
-        echo "Successfully pulled $repo_and_package@$DIGEST"
 
     - name: Print summary outputs
       shell: bash
       run: |
-        echo "digest: ${{ steps.digest.outputs.digest }}"
+        echo "digest: ${{ steps.build_and_push.outputs.digest }}"
         echo "triggered: ${{ steps.diff.outputs.triggered }}"
         echo "tags_csv: ${{ steps.vars.outputs.tags_csv }}"
         # Print tags with indentation for multiline values
