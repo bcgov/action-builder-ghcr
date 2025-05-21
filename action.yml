@@ -74,11 +74,6 @@ runs:
         min-versions-to-keep: ${{ inputs.keep_versions }}
         ignore-versions: "${{ inputs.keep_regex }}"
 
-    # Checkout 
-    - uses: actions/checkout@v4
-      with:
-        repository: ${{ inputs.repository }}
-
     # Process variables and inputs
     - id: vars
       shell: bash
@@ -98,12 +93,6 @@ runs:
         # Set build context and file with defaults
         BUILD_CONTEXT="${INPUT_BUILD_CONTEXT:-$INPUT_PACKAGE}"
         BUILD_FILE="${INPUT_BUILD_FILE:-${BUILD_CONTEXT}/Dockerfile}"
-
-        # Validate Dockerfile path early
-        if [ -z "$BUILD_FILE" ] || [ ! -w "$BUILD_FILE" ]; then
-          echo "Error: Dockerfile path is invalid or not writable!" >&2
-          exit 1
-        fi
 
         # Process tags into comma-separated list of full image paths
         TAGS=()
@@ -174,7 +163,25 @@ runs:
         BUILDER_TAGS: ${{ steps.vars.outputs.tags_joined }}
       shell: bash
       run: |
+        # Add build envars to Dockerfile
         set -euo pipefail
+
+        # Diagnostics and validation for Dockerfile path
+        echo "[DIAG] Checking Dockerfile path: $dockerfile"
+        if [ -z "$dockerfile" ]; then
+          echo "[DIAG] dockerfile is not set!" >&2
+          exit 1
+        fi
+        if [ ! -e "$dockerfile" ]; then
+          echo "[DIAG] Dockerfile does not exist at $dockerfile" >&2
+          ls -l "$(dirname \"$dockerfile\")" || echo "[DIAG] Directory does not exist: $(dirname \"$dockerfile\")" >&2
+          exit 1
+        fi
+        if [ ! -w "$dockerfile" ]; then
+          echo "[DIAG] Dockerfile is not writable at $dockerfile" >&2
+          ls -l "$dockerfile" || true
+          exit 1
+        fi
         # Add build envars to Dockerfile (pad for missing line endings!)
         echo "" >> "$dockerfile"
         echo "ENV BUILDER_IMAGE=ghcr.io/${{ github.repository }}/${{ inputs.package }}" >> "$dockerfile"
