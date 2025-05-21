@@ -172,10 +172,10 @@ runs:
           echo "[DIAG] DOCKERFILE is not writable at $DOCKERFILE" >&2
           ls -l "$DOCKERFILE" || true
         else
-          # Add build envars to DOCKERFILE (pad for missing line endings!)
+          # Add build envars to DOCKERFILE (pad for missing line endings)
           echo "" >> "$DOCKERFILE"
           echo "ENV BUILDER_IMAGE=ghcr.io/${{ github.repository }}/${{ inputs.package }}" >> "$DOCKERFILE"
-          echo "ENV BUILDER_TAGS=\"${{ inputs.tags }}\"" >> "$DOCKERFILE"
+          echo "ENV BUILDER_TAGS=\"$(echo "${{ inputs.tags }}" | tr '\n' ' ' | xargs)\"" >> "$DOCKERFILE"
           exit 0
         fi
         exit 1
