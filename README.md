@@ -212,19 +212,19 @@ New image digest (SHA).  This applies to build and retags.
 Has an image been built?  [true|false]
 
 ```yaml
-- id: digest
+- id: trigger
   uses: bcgov/action-builder-ghcr@vX.Y.Z
   ...
 
 - name: Echo build trigger
   run: |
-    echo "Trigger result: ${{ steps.digest.outputs.triggered }}"
+    echo "Trigger result: ${{ steps.trigger.outputs.triggered }}"
   ...
 ```
 
 # Permissions
 
-Workflows kicked off by Dependabot or a fork run with reduced permissions.  That can be addressed by setting explict permissions for the GITHUB_TOKEN.  If this is not required, then remove the lines below from these examples.
+It is good practice to set explicit permissions for jobs and workflows.  These are applied to the GITHUB_TOKEN.  Please see the [GitHub documentation](https://docs.github.com/en/actions/writing-workflows/choosing-what-your-workflow-does/controlling-permissions-for-github_token) for more information.
 
 ```yaml
 permissions:
@@ -233,9 +233,9 @@ permissions:
 
 # Deprecations
 
-- The `tag` input has been deprecated in favor of `tags`, which can handle multiple tags with a multiline string.
+- The `tag` input has been deprecated in favor of `tags`, a multiline string that can handle multiple values.
 - The `digest_old` output has been deprecated due to non-use.
-- The `digest_new` output has been renamed to just `digest`.
+- The `digest_new` output has been renamed to `digest`.
 
 <!-- # Acknowledgements
 
