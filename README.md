@@ -240,4 +240,4 @@ permissions:
 
 <!-- # Acknowledgements
 
-This Action is provided courtesty of the Forestry Suite of Applications, part of the Government of British Columbia. -->
+This Action is provided courtesy of the Forestry Suite of Applications, part of the Government of British Columbia. -->
