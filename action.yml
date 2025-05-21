@@ -91,20 +91,16 @@ runs:
         fi
 
         # Set build context and file with defaults
-        BUILD_CONTEXT="${INPUT_BUILD_CONTEXT:-$INPUT_PACKAGE}"
-        BUILD_FILE="${INPUT_BUILD_FILE:-${BUILD_CONTEXT}/Dockerfile}"
+        build_context="${INPUT_BUILD_CONTEXT:-$INPUT_PACKAGE}"
+        build_file="${INPUT_BUILD_FILE:-${build_context}/Dockerfile}"
 
-        # Process tags into comma-separated list of full image paths
-        TAGS=()
-        while IFS= read -r tag || [ -n "$tag" ]; do
-          tag_clean=$(echo "$tag" | tr '[:upper:]' '[:lower:]' | tr -d ' ')
-          [ -z "$tag_clean" ] && continue
-          TAGS+=("ghcr.io/${GITHUB_REPOSITORY}/${INPUT_PACKAGE}:$tag_clean")
-        done <<< "$INPUT_TAGS"
-        TAGS_JOINED=$(IFS=, ; echo "${TAGS[*]}")
+        # Process tags into comma-separated list of full image paths (concise version)
+        mapfile -t tags < <(printf '%s\n' "$INPUT_TAGS" | tr '[:upper:]' '[:lower:]' | tr -d ' ' | grep -v '^$')
+        tags=("${tags[@]/#/ghcr.io/${GITHUB_REPOSITORY}/${INPUT_PACKAGE}:}")
+        tags_joined=$(IFS=, ; echo "${tags[*]}")
 
         # Output all variables at once, and verify they are set
-        for v in BUILD_CONTEXT BUILD_FILE TAGS_JOINED; do
+        for v in build_context build_file tags_joined; do
           if [ -z "${!v}" ]; then
             echo "Error: $v is not set!" >&2
             exit 1
@@ -134,7 +130,7 @@ runs:
           echo "Build triggered.  Override repository provided."
         elif [ -z "${{ inputs.tag_fallback }}" ]; then
           echo "Build triggered.  No tag_fallback provided."
-        elif [[ ! $(docker manifest inspect ${URL_FALLBACK}) ]]; then
+        elif [[ ! $(docker manifest inspect "${URL_FALLBACK}") ]]; then
           echo "Build triggered.  Fallback tag (tag_fallback) not usable."
         else
           echo "Container build not required"
@@ -227,9 +223,9 @@ runs:
       shell: bash
       run: |
         # Get the digest of the first image in the comma-separated tags list
-        FIRST_TAG=$(echo "${{ steps.vars.outputs.tags_joined }}" | cut -d, -f1)
-        DIGEST=$(docker manifest inspect "$FIRST_TAG" | jq -r '.manifests[0].digest')
-        echo "digest=${DIGEST}" >> $GITHUB_OUTPUT
+        first_tag=$(echo "${{ steps.vars.outputs.tags_joined }}" | cut -d, -f1)
+        digest=$(docker manifest inspect "$first_tag" | jq -r '.manifests[0].digest')
+        echo "digest=${digest}" >> $GITHUB_OUTPUT
 
     - shell: bash
       run: |
