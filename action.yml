@@ -46,6 +46,7 @@ inputs:
     default: ${{ github.repository }}
   tag:
     description: Deprecated input; use tags instead
+    deprecationMessage: "Input 'tag' is deprecated and will be removed in a future release. Please use 'tags' instead."
   token:
     description: Specify token (GH or PAT), instead of inheriting one from the calling workflow
     default: ${{ github.token }}
@@ -92,6 +93,12 @@ runs:
         # Set build context and file with defaults
         BUILD_CONTEXT="${INPUT_BUILD_CONTEXT:-$INPUT_PACKAGE}"
         BUILD_FILE="${INPUT_BUILD_FILE:-${BUILD_CONTEXT}/Dockerfile}"
+
+        # Validate Dockerfile path early
+        if [ -z "$BUILD_FILE" ] || [ ! -w "$BUILD_FILE" ]; then
+          echo "Error: Dockerfile path is invalid or not writable!" >&2
+          exit 1
+        fi
 
         # Process tags into comma-separated list of full image paths
         TAGS=()
@@ -160,16 +167,19 @@ runs:
       if: steps.build.outputs.triggered == 'true'
       env:
         dockerfile: ${{ steps.vars.outputs.build_file }}
+        BUILDER_TAGS: ${{ steps.vars.outputs.tags_joined }}
       shell: bash
       run: |
+        set -euo pipefail
         # Add build envars to Dockerfile (pad for missing line endings!)
-        echo "" >> ${{ env.dockerfile }}
-        echo "ENV BUILDER_IMAGE=ghcr.io/${{ github.repository }}/${{ inputs.package }}" >> ${{ env.dockerfile }}
-        echo "ENV BUILDER_PACKAGE=${{ inputs.package }}" >> ${{ env.dockerfile }}
-        echo "ENV BUILDER_REPO=${{ github.repository }}" >> ${{ env.dockerfile }}
-        # Convert multiline tags to a single comma-separated string for BUILDER_TAGS
-        TAGS_COMMA=$(echo "${{ inputs.tags }}" | tr '\n' ',' | tr -s ',' | sed 's/,$//')
-        echo "ENV BUILDER_TAGS=\"$TAGS_COMMA\"" >> ${{ env.dockerfile }}
+        echo "" >> "$dockerfile"
+        echo "ENV BUILDER_IMAGE=ghcr.io/${{ github.repository }}/${{ inputs.package }}" >> "$dockerfile"
+        echo "ENV BUILDER_PACKAGE=${{ inputs.package }}" >> "$dockerfile"
+        echo "ENV BUILDER_REPO=${{ github.repository }}" >> "$dockerfile"
+        # Use processed tags for BUILDER_TAGS
+        echo "ENV BUILDER_TAGS=\"$BUILDER_TAGS\"" >> "$dockerfile"
+        # Output variables for clarity
+        echo "# BUILDER_TAGS: $BUILDER_TAGS"
 
     - name: Set up Docker Buildx
       if: steps.build.outputs.triggered == 'true'
