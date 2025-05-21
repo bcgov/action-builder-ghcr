@@ -99,9 +99,20 @@ runs:
         BUILD_CONTEXT="${INPUT_BUILD_CONTEXT:-$INPUT_PACKAGE}"
         BUILD_FILE="${INPUT_BUILD_FILE:-${BUILD_CONTEXT}/Dockerfile}"
 
-        # Validate Dockerfile path early
-        if [ -z "$BUILD_FILE" ] || [ ! -w "$BUILD_FILE" ]; then
-          echo "Error: Dockerfile path is invalid or not writable!" >&2
+        # Validate Dockerfile path early, with diagnostics
+        echo "[DIAG] Checking Dockerfile path: $BUILD_FILE"
+        if [ -z "$BUILD_FILE" ]; then
+          echo "[DIAG] BUILD_FILE is not set!" >&2
+          exit 1
+        fi
+        if [ ! -e "$BUILD_FILE" ]; then
+          echo "[DIAG] Dockerfile does not exist at $BUILD_FILE" >&2
+          ls -l "$(dirname \"$BUILD_FILE\")" || echo "[DIAG] Directory does not exist: $(dirname \"$BUILD_FILE\")" >&2
+          exit 1
+        fi
+        if [ ! -w "$BUILD_FILE" ]; then
+          echo "[DIAG] Dockerfile is not writable at $BUILD_FILE" >&2
+          ls -l "$BUILD_FILE" || true
           exit 1
         fi
 
