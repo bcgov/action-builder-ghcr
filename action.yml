@@ -237,7 +237,7 @@ runs:
         fi
 
         # Validate that the image and digest can be pulled
-        repo_and_package="ghcr.io/${{ inputs.repository }}/${{ inputs.package }}"
+        repo_and_package="ghcr.io/${{ github.repository }}/${{ inputs.package }}"
         echo "Attempting to pull $repo_and_package@$DIGEST ..."
         if ! docker pull "$repo_and_package@$DIGEST"; then
           echo "Error: Failed to pull image $repo_and_package@$DIGEST" >&2
