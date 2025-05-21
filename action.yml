@@ -155,38 +155,30 @@ runs:
     - name: Add build envars to Dockerfile
       if: steps.build.outputs.triggered == 'true'
       env:
-        dockerfile: ${{ steps.vars.outputs.build_file }}
-        BUILDER_TAGS: ${{ steps.vars.outputs.tags_csv }}
+        DOCKERFILE: ${{ steps.vars.outputs.build_file }}
       shell: bash
       run: |
-        # Add build envars to Dockerfile
+        # Add build envars to DOCKERFILE
         set -euo pipefail
 
-        # Diagnostics and validation for Dockerfile path
-        echo "[DIAG] Checking Dockerfile path: $dockerfile"
-        if [ -z "$dockerfile" ]; then
-          echo "[DIAG] dockerfile is not set!" >&2
-          exit 1
+        # Diagnostics and validation for DOCKERFILE path
+        echo "[DIAG] Checking DOCKERFILE path: $DOCKERFILE"
+        if [ -z "$DOCKERFILE" ]; then
+          echo "[DIAG] DOCKERFILE is not set!" >&2
+        elif [ ! -e "$DOCKERFILE" ]; then
+          echo "[DIAG] DOCKERFILE does not exist at $DOCKERFILE" >&2
+          ls -l "$(dirname \"$DOCKERFILE\")" || echo "[DIAG] Directory does not exist: $(dirname \"$DOCKERFILE\")" >&2
+        elif [ ! -w "$DOCKERFILE" ]; then
+          echo "[DIAG] DOCKERFILE is not writable at $DOCKERFILE" >&2
+          ls -l "$DOCKERFILE" || true
+        else
+          # Add build envars to DOCKERFILE (pad for missing line endings!)
+          echo "" >> "$DOCKERFILE"
+          echo "ENV BUILDER_IMAGE=ghcr.io/${{ github.repository }}/${{ inputs.package }}" >> "$DOCKERFILE"
+          echo "ENV BUILDER_TAGS=\"${{ inputs.tags }}\"" >> "$DOCKERFILE"
+          exit 0
         fi
-        if [ ! -e "$dockerfile" ]; then
-          echo "[DIAG] Dockerfile does not exist at $dockerfile" >&2
-          ls -l "$(dirname \"$dockerfile\")" || echo "[DIAG] Directory does not exist: $(dirname \"$dockerfile\")" >&2
-          exit 1
-        fi
-        if [ ! -w "$dockerfile" ]; then
-          echo "[DIAG] Dockerfile is not writable at $dockerfile" >&2
-          ls -l "$dockerfile" || true
-          exit 1
-        fi
-        # Add build envars to Dockerfile (pad for missing line endings!)
-        echo "" >> "$dockerfile"
-        echo "ENV BUILDER_IMAGE=ghcr.io/${{ github.repository }}/${{ inputs.package }}" >> "$dockerfile"
-        echo "ENV BUILDER_PACKAGE=${{ inputs.package }}" >> "$dockerfile"
-        echo "ENV BUILDER_REPO=${{ github.repository }}" >> "$dockerfile"
-        # Use processed tags for BUILDER_TAGS
-        echo "ENV BUILDER_TAGS=\"$BUILDER_TAGS\"" >> "$dockerfile"
-        # Output variables for clarity
-        echo "# BUILDER_TAGS: $BUILDER_TAGS"
+        exit 1
 
     - name: Set up Docker Buildx
       if: steps.build.outputs.triggered == 'true'
