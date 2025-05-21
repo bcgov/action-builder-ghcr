@@ -39,10 +39,6 @@ Only GitHub Container Registry (ghcr.io) is supported so far.
     # Optional, defaults to {package}/Dockerfile or {build_context}/Dockerfile
     build_file: ./frontend/Dockerfile
 
-    # Number of packages to keep if cleaning up previous builds
-    # Optional, skips if not provided
-    keep_versions: 50
-
     # Fallback tag, used if no build was generated
     # Optional, defaults to nothing, which forces a build
     # Non-matching or malformed tags are rejected, which also forced a build
@@ -69,10 +65,6 @@ Only GitHub Container Registry (ghcr.io) is supported so far.
     # Overrides the default branch to diff against
     # Defaults to the default branch, usually `main`
     diff_branch: ${{ github.event.repository.default_branch }}
-
-    # Regex for tags to skip when cleaning up packages; defaults to test and prod
-    # Only used when keep_versions is provided
-    keep_regex: "^(prod|test)$"
 
     # Repository to clone and process
     # Useful for consuming other repos, like in testing
@@ -116,7 +108,6 @@ jobs:
       - name: Builds
         uses: bcgov/action-builder-ghcr@vX.Y.Z
         with:
-          keep_versions: 50
           package: frontend
           tag_fallback: test
           triggers: ('frontend/')
@@ -151,7 +142,6 @@ jobs:
           package: frontend
           build_context: ./
           build_file: subdir/Dockerfile
-          keep_versions: 50
           tags: |
             ${{ github.event.number }}
             ${{ github.sha }}
