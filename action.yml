@@ -105,9 +105,9 @@ runs:
         # Convert multiline tags input to a comma-separated list of full image paths (lowercase, no spaces)
         TAGS=""
         while IFS= read -r tag || [ -n "$tag" ]; do
-          tag_clean=$(echo "$tag" | tr '[:upper:]' '[:lower:]' | tr -d ' ')
-          [ -z "$tag_clean" ] && continue
-          full_tag="ghcr.io/${{ github.repository }}/${{ inputs.package }}:$tag_clean"
+          tag_lowercase=$(echo "$tag" | tr '[:upper:]' '[:lower:]' | tr -d ' ')
+          [ -z "$tag_lowercase" ] && continue
+          full_tag="ghcr.io/${{ github.repository }}/${{ inputs.package }}:$tag_lowercase"
           if [ -z "$TAGS" ]; then
             TAGS="$full_tag"
           else

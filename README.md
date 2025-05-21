@@ -28,20 +28,8 @@ Only GitHub Container Registry (ghcr.io) is supported so far.
     # Package name
     package: frontend
 
-    # Tag name (<package>:<tag>)
-    tags: |
-      pr123
-      demo
+
     ### Typical / recommended
-
-    # Fallback tag, used if no build was generated
-    # Optional, defaults to nothing, which forces a build
-    # Non-matching or malformed tags are rejected, which also forced a build
-    tag_fallback: test
-
-    # Bash array to diff for build triggering
-    # Optional, defaults to nothing, which forces a build
-    triggers: ('frontend/' 'backend/' 'database/')
 
     # Sets the build context/directory, which contains the build files
     # Optional, defaults to package name
@@ -54,6 +42,21 @@ Only GitHub Container Registry (ghcr.io) is supported so far.
     # Number of packages to keep if cleaning up previous builds
     # Optional, skips if not provided
     keep_versions: 50
+
+    # Fallback tag, used if no build was generated
+    # Optional, defaults to nothing, which forces a build
+    # Non-matching or malformed tags are rejected, which also forced a build
+    tag_fallback: test
+
+    # Tags to apply to the image
+    # Optional, defaults to pull request number
+    tags: |
+      pr123
+      demo
+
+    # Bash array to diff for build triggering
+    # Optional, defaults to nothing, which forces a build
+    triggers: ('frontend/' 'backend/' 'database/')
 
 
     ### Usually a bad idea / not recommended
@@ -78,6 +81,12 @@ Only GitHub Container Registry (ghcr.io) is supported so far.
 
     # Specify token (GH or PAT), instead of inheriting one from the calling workflow
     token: ${{ secrets.GITHUB_TOKEN }}
+
+
+    ### Deprecated
+
+    # Single-value tag input has been replaced with inputs.tags, which can handle multiple values
+    tag: do not use!
 
 ```
 
@@ -107,12 +116,13 @@ jobs:
       - name: Builds
         uses: bcgov/action-builder-ghcr@vX.Y.Z
         with:
+          keep_versions: 50
           package: frontend
           tag_fallback: test
           triggers: ('frontend/')
 ```
 
-# Example, Single Build with build_context, build_file, keep_versions and multiple tags
+# Example, Single Build with build_context, build_file and multiple tags
 
 Same as previous, but specifying build folder and Dockerfile.
 
