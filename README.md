@@ -87,7 +87,7 @@ Only GitHub Container Registry (ghcr.io) is supported so far.
 
 Build a single subfolder with a Dockerfile in it.  Deletes old packages, keeping the last 50.  Runs on pull requests (PRs).
 
-Create or modify a GitHub workflow, like below.  E.g. `./github/workflows/pr-open.yml`
+Create or modify a GitHub workflow, like below.  E.g. `.github/workflows/pr-open.yml`
 
 ```yaml
 name: Pull Request
@@ -118,7 +118,7 @@ jobs:
 
 Same as previous, but specifying build folder and Dockerfile.
 
-Create or modify a GitHub workflow, like below.  E.g. `./github/workflows/pr-open.yml`
+Create or modify a GitHub workflow, like below.  E.g. `.github/workflows/pr-open.yml`
 
 ```yaml
 name: Pull Request
@@ -156,7 +156,7 @@ jobs:
 
 Build from multiple subfolders with Dockerfile in them.  This time an outside repository is used.  Runs on pull requests (PRs).
 
-Create or modify a GitHub workflow, like below.  E.g. `./github/workflows/pr-open.yml`
+Create or modify a GitHub workflow, like below.  E.g. `.github/workflows/pr-open.yml`
 
 ```yaml
 name: Pull Request
