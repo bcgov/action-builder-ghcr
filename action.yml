@@ -80,8 +80,6 @@ runs:
         INPUT_BUILD_CONTEXT: ${{ inputs.build_context }}
         INPUT_BUILD_FILE: ${{ inputs.build_file }}
         INPUT_PACKAGE: ${{ inputs.package }}
-        INPUT_TAGS: ${{ inputs.tags }}
-        GITHUB_REPOSITORY: ${{ github.repository }}
       run: |
         # Process inputs and set variables
         set -euo pipefail  # Robust error handling for all script steps
@@ -97,8 +95,8 @@ runs:
         build_file="${INPUT_BUILD_FILE:-${build_context}/Dockerfile}"
 
         # Process tags into comma-separated list of full image paths (concise version)
-        mapfile -t tags < <(printf '%s\n' "$INPUT_TAGS" | tr '[:upper:]' '[:lower:]' | tr -d ' ' | grep -v '^$')
-        tags=("${tags[@]/#/ghcr.io/${GITHUB_REPOSITORY}/${INPUT_PACKAGE}:}")
+        mapfile -t tags < <(printf '%s\n' "${{ inputs.tags }}" | tr '[:upper:]' '[:lower:]' | tr -d ' ' | grep -v '^$')
+        tags=("${tags[@]/#/ghcr.io/${{ github.repository }}/${INPUT_PACKAGE}:}")
         tags_csv=$(IFS=, ; echo "${tags[*]}")
 
         # Output all variables at once, and verify they are set
@@ -242,8 +240,3 @@ runs:
         echo "digest: ${{ steps.build_and_push.outputs.digest }}"
         echo "triggered: ${{ steps.diff.outputs.triggered }}"
         echo "tags_csv: ${{ steps.vars.outputs.tags_csv }}"
-        # Print tags with indentation for multiline values
-        echo "tags:"
-        while IFS= read -r line; do
-          echo "  $line"
-        done <<< "${{ inputs.tags }}"
