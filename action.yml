@@ -203,8 +203,8 @@ runs:
         password: ${{ inputs.token }} 
 
     - name: Build and push ${{ inputs.package }} Docker image
-      if: steps.build.outputs.triggered == 'true'
       id: build_and_push
+      if: steps.build.outputs.triggered == 'true'
       uses: docker/build-push-action@14487ce63c7a62a4a324b0bfb37086795e31c6c1 # v6
       with:
         context: ${{ steps.vars.outputs.build_context }}
@@ -221,36 +221,31 @@ runs:
       uses: actions/checkout@v4
 
     # Get the digest of the built image from the build-push-action output
-    - name: Return digest of the built image
+    - name: Validate digest
+      env:
+        DIGEST: ${{ steps.build_and_push.outputs.digest }}
       id: digest
+      if: steps.build.outputs.triggered == 'true'
       shell: bash
       run: |
+        # Validate digest
         set -euo pipefail
-        digest="${{ steps.build_and_push.outputs.digest }}"
-        if [ -z "$digest" ] || [ "$digest" = "null" ]; then
+
+        if [ -z "$DIGEST" ] || [ "$DIGEST" = "null" ]; then
           echo "Error: Could not retrieve manifest list digest from build-push-action output" >&2
           exit 1
         fi
-        echo "digest=$digest" >> $GITHUB_OUTPUT
 
-    - name: Validate digest by pulling image
-      shell: bash
-      run: |
-        # Validate that the image with the calculated digest can be pulled
-        set -euo pipefail
-
-        digest="${{ steps.digest.outputs.digest }}"
-        repo_and_package="ghcr.io/${{ inputs.repository }}/${{ inputs.package }}"
-        if [ -z "$digest" ] || [ "$digest" = "null" ]; then
-          echo "Error: Digest is not set or is null, cannot validate image pull." >&2
+        # Validate that the image and digest can be pulled
+        first_tag=$(echo "${{ steps.vars.outputs.tags_csv }}" | cut -d, -f1)
+        repo_and_package="ghcr.io/${{ inputs.repository }}/${{ inputs.package }}:$first_tag"
+        echo "Attempting to pull $repo_and_package@sha:$DIGEST ..."
+        if ! docker pull "$repo_and_package@sha:$DIGEST"; then
+          echo "Error: Failed to pull image $repo_and_package@sha:$DIGEST" >&2
           exit 1
         fi
-        echo "Attempting to pull $repo_and_package@$digest ..."
-        if ! docker pull "$repo_and_package@$digest"; then
-          echo "Error: Failed to pull image $repo_and_package@$digest" >&2
-          exit 1
-        fi
-        echo "Successfully pulled $repo_and_package@$digest"
+        echo "digest=$DIGEST" >> $GITHUB_OUTPUT
+        echo "Successfully pulled $repo_and_package@$DIGEST"
 
     - name: Print summary outputs
       shell: bash
