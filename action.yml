@@ -74,7 +74,6 @@ runs:
         min-versions-to-keep: ${{ inputs.keep_versions }}
         ignore-versions: "${{ inputs.keep_regex }}"
 
-    # Process variables and inputs
     - id: vars
       shell: bash
       env:
@@ -84,6 +83,9 @@ runs:
         INPUT_TAGS: ${{ inputs.tags }}
         GITHUB_REPOSITORY: ${{ github.repository }}
       run: |
+        # Process inputs and set variables
+        set -euo pipefail  # Robust error handling for all script steps
+
         # Early exit for deprecated input
         if [ -n "${{ inputs.tag }}" ]; then
           echo "Input 'tag' is deprecated. Please use 'tags' instead."
@@ -97,10 +99,10 @@ runs:
         # Process tags into comma-separated list of full image paths (concise version)
         mapfile -t tags < <(printf '%s\n' "$INPUT_TAGS" | tr '[:upper:]' '[:lower:]' | tr -d ' ' | grep -v '^$')
         tags=("${tags[@]/#/ghcr.io/${GITHUB_REPOSITORY}/${INPUT_PACKAGE}:}")
-        tags_joined=$(IFS=, ; echo "${tags[*]}")
+        tags_csv=$(IFS=, ; echo "${tags[*]}")
 
         # Output all variables at once, and verify they are set
-        for v in build_context build_file tags_joined; do
+        for v in build_context build_file tags_csv; do
           if [ -z "${!v}" ]; then
             echo "Error: $v is not set!" >&2
             exit 1
@@ -156,7 +158,7 @@ runs:
       if: steps.build.outputs.triggered == 'true'
       env:
         dockerfile: ${{ steps.vars.outputs.build_file }}
-        BUILDER_TAGS: ${{ steps.vars.outputs.tags_joined }}
+        BUILDER_TAGS: ${{ steps.vars.outputs.tags_csv }}
       shell: bash
       run: |
         # Add build envars to Dockerfile
@@ -207,7 +209,7 @@ runs:
         context: ${{ steps.vars.outputs.build_context }}
         file: ${{ steps.vars.outputs.build_file }}
         push: true
-        tags: ${{ steps.vars.outputs.tags_joined }}
+        tags: ${{ steps.vars.outputs.tags_csv }}
         cache-from: type=gha
         cache-to: type=gha,mode=max
         build-args: ${{ inputs.build_args }}
@@ -222,13 +224,21 @@ runs:
       id: digest
       shell: bash
       run: |
-        # Get the digest of the first image in the comma-separated tags list
-        first_tag=$(echo "${{ steps.vars.outputs.tags_joined }}" | cut -d, -f1)
+        # Get the digest (first for multiple tags)
+        set -euo pipefail  # Robust error handling for all script steps
+
+        first_tag=$(echo "${{ steps.vars.outputs.tags_csv }}" | cut -d, -f1)
         digest=$(docker manifest inspect "$first_tag" | jq -r '.manifests[0].digest')
+        if [ -z "$digest" ] || [ "$digest" = "null" ]; then
+          echo "Error: Could not retrieve digest for $first_tag" >&2
+          exit 1
+        fi
         echo "digest=${digest}" >> $GITHUB_OUTPUT
 
-    - shell: bash
+    - name: Print summary outputs
+      shell: bash
       run: |
-        # Summary
         echo "digest: ${{ steps.digest.outputs.digest }}"
         echo "triggered: ${{ steps.diff.outputs.triggered }}"
+        echo "tags_csv: ${{ steps.vars.outputs.tags_csv }}"
+        echo "tags: ${{ inputs.tags}}"
