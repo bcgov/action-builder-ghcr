@@ -237,11 +237,10 @@ runs:
         fi
 
         # Validate that the image and digest can be pulled
-        first_tag=$(echo "${{ steps.vars.outputs.tags_csv }}" | cut -d, -f1)
-        repo_and_package="ghcr.io/${{ inputs.repository }}/${{ inputs.package }}:$first_tag"
-        echo "Attempting to pull $repo_and_package@sha:$DIGEST ..."
-        if ! docker pull "$repo_and_package@sha:$DIGEST"; then
-          echo "Error: Failed to pull image $repo_and_package@sha:$DIGEST" >&2
+        repo_and_package="ghcr.io/${{ inputs.repository }}/${{ inputs.package }}"
+        echo "Attempting to pull $repo_and_package@$DIGEST ..."
+        if ! docker pull "$repo_and_package@$DIGEST"; then
+          echo "Error: Failed to pull image $repo_and_package@$DIGEST" >&2
           exit 1
         fi
         echo "digest=$DIGEST" >> $GITHUB_OUTPUT
