@@ -74,48 +74,37 @@ runs:
         min-versions-to-keep: ${{ inputs.keep_versions }}
         ignore-versions: "${{ inputs.keep_regex }}"
 
-    # Process variables and inputs
+    # Process variables and inputs (optimized)
     - id: vars
       shell: bash
       run: |
-        # Inputs and variables
-
-        # If inputs.tag is provided say it has been deprecated and exit 1
+        # Early exit for deprecated input
         if [ -n "${{ inputs.tag }}" ]; then
-          echo "Input 'tag' is deprecated.  Please use 'tags' instead."
+          echo "Input 'tag' is deprecated. Please use 'tags' instead."
           exit 1
         fi
 
-        # Use package folder as build_context unless an override has been provided
-        if [ -z ${{ inputs.build_context }} ]; then
-          BUILD_CONTEXT=${{ inputs.package }}
-        else
-          BUILD_CONTEXT=${{ inputs.build_context }}
-        fi
-        echo "build_context=${BUILD_CONTEXT}" >> $GITHUB_OUTPUT
+        # Set build context and file with defaults
+        BUILD_CONTEXT="${{ inputs.build_context:-${{ inputs.package }}}}"
+        BUILD_FILE="${{ inputs.build_file:-${BUILD_CONTEXT}/Dockerfile}}"
 
-        # Use BUILD_CONTEXT/Dockerfile as build_file unless an override has been provided
-        if [ -z ${{ inputs.build_file }} ]; then
-          BUILD_FILE=${BUILD_CONTEXT}/Dockerfile
-        else
-          BUILD_FILE=${{ inputs.build_file }}
-        fi
-        echo "build_file=${BUILD_FILE}" >> $GITHUB_OUTPUT
-
-        # Bug - Docker build hates images with capital letters
-        # Convert multiline tags input to a comma-separated list of full image paths (lowercase, no spaces)
+        # Process tags into comma-separated list of full image paths
         TAGS=""
         while IFS= read -r tag || [ -n "$tag" ]; do
           tag_clean=$(echo "$tag" | tr '[:upper:]' '[:lower:]' | tr -d ' ')
           [ -z "$tag_clean" ] && continue
           full_tag="ghcr.io/${{ github.repository }}/${{ inputs.package }}:$tag_clean"
-          if [ -z "$TAGS" ]; then
-            TAGS="$full_tag"
-          else
-            TAGS="$TAGS,$full_tag"
-          fi
+          tags="${tags:+$tags,}$full_tag"
         done <<< "${{ inputs.tags }}"
-        echo "tags=$TAGS" >> $GITHUB_OUTPUT
+
+        # Output all variables at once, and verify they are set
+        for v in build_context build_file tags; do
+          if [ -z "${!v}" ]; then
+            echo "Error: $v is not set!" >&2
+            exit 1
+          fi
+          echo "$v=${!v}" >> $GITHUB_OUTPUT
+        done
 
     # Send triggers to diff action
     - id: diff
@@ -132,7 +121,7 @@ runs:
       shell: bash
       run: |
         # Check for builds
-        echo "triggered=true" >> $GITHUB_OUTPUT
+        triggered=true
         if [ "${{ steps.diff.outputs.triggered }}" == "true" ]; then
           echo "Build triggered. Used bcgov/action-diff-triggers."
         elif [ "${{ inputs.repository }}" != "${{ github.repository }}" ]; then
@@ -143,8 +132,9 @@ runs:
           echo "Build triggered.  Fallback tag (tag_fallback) not usable."
         else
           echo "Container build not required"
-          echo "triggered=false" >> $GITHUB_OUTPUT
+          triggered=false
         fi
+        echo "triggered=${triggered}" >> $GITHUB_OUTPUT
 
     # If a build is not required, reuse a previous image
     - name: Recycle/retag Previous Images
