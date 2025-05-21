@@ -241,4 +241,8 @@ runs:
         echo "digest: ${{ steps.digest.outputs.digest }}"
         echo "triggered: ${{ steps.diff.outputs.triggered }}"
         echo "tags_csv: ${{ steps.vars.outputs.tags_csv }}"
-        echo "tags: ${{ inputs.tags}}"
+        # Print tags with indentation for multiline values
+        echo "tags:"
+        while IFS= read -r line; do
+          echo "  $line"
+        done <<< "${{ inputs.tags }}"
