@@ -76,45 +76,40 @@ runs:
     # Process variables and inputs
     - id: vars
       shell: bash
+      env:
+        INPUT_BUILD_CONTEXT: ${{ inputs.build_context }}
+        INPUT_BUILD_FILE: ${{ inputs.build_file }}
+        INPUT_PACKAGE: ${{ inputs.package }}
+        INPUT_TAGS: ${{ inputs.tags }}
+        GITHUB_REPOSITORY: ${{ github.repository }}
       run: |
-        # Inputs and variables
-
-        # If inputs.tag is provided say it has been deprecated and exit 1
+        # Early exit for deprecated input
         if [ -n "${{ inputs.tag }}" ]; then
-          echo "Input 'tag' is deprecated.  Please use 'tags' instead."
+          echo "Input 'tag' is deprecated. Please use 'tags' instead."
           exit 1
         fi
 
-        # Use package folder as build_context unless an override has been provided
-        if [ -z ${{ inputs.build_context }} ]; then
-          BUILD_CONTEXT=${{ inputs.package }}
-        else
-          BUILD_CONTEXT=${{ inputs.build_context }}
-        fi
-        echo "build_context=${BUILD_CONTEXT}" >> $GITHUB_OUTPUT
+        # Set build context and file with defaults
+        BUILD_CONTEXT="${INPUT_BUILD_CONTEXT:-$INPUT_PACKAGE}"
+        BUILD_FILE="${INPUT_BUILD_FILE:-${BUILD_CONTEXT}/Dockerfile}"
 
-        # Use BUILD_CONTEXT/Dockerfile as build_file unless an override has been provided
-        if [ -z ${{ inputs.build_file }} ]; then
-          BUILD_FILE=${BUILD_CONTEXT}/Dockerfile
-        else
-          BUILD_FILE=${{ inputs.build_file }}
-        fi
-        echo "build_file=${BUILD_FILE}" >> $GITHUB_OUTPUT
-
-        # Bug - Docker build hates images with capital letters
-        # Convert multiline tags input to a comma-separated list of full image paths (lowercase, no spaces)
-        TAGS=""
+        # Process tags into comma-separated list of full image paths
+        TAGS=()
         while IFS= read -r tag || [ -n "$tag" ]; do
-          tag_lowercase=$(echo "$tag" | tr '[:upper:]' '[:lower:]' | tr -d ' ')
-          [ -z "$tag_lowercase" ] && continue
-          full_tag="ghcr.io/${{ github.repository }}/${{ inputs.package }}:$tag_lowercase"
-          if [ -z "$TAGS" ]; then
-            TAGS="$full_tag"
-          else
-            TAGS="$TAGS,$full_tag"
+          tag_clean=$(echo "$tag" | tr '[:upper:]' '[:lower:]' | tr -d ' ')
+          [ -z "$tag_clean" ] && continue
+          TAGS+=("ghcr.io/${GITHUB_REPOSITORY}/${INPUT_PACKAGE}:$tag_clean")
+        done <<< "$INPUT_TAGS"
+        TAGS_JOINED=$(IFS=, ; echo "${TAGS[*]}")
+
+        # Output all variables at once, and verify they are set
+        for v in BUILD_CONTEXT BUILD_FILE TAGS_JOINED; do
+          if [ -z "${!v}" ]; then
+            echo "Error: $v is not set!" >&2
+            exit 1
           fi
-        done <<< "${{ inputs.tags }}"
-        echo "tags=$TAGS" >> $GITHUB_OUTPUT
+          echo "$v=${!v}" >> $GITHUB_OUTPUT
+        done
 
     # Send triggers to diff action
     - id: diff
