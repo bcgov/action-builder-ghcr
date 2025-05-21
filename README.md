@@ -103,7 +103,7 @@ jobs:
       packages: write
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - name: Builds
         uses: bcgov/action-builder-ghcr@vX.Y.Z
         with:
@@ -137,7 +137,7 @@ jobs:
       packages: write
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - name: Builds
         uses: bcgov/action-builder-ghcr@vX.Y.Z
         with:
@@ -181,7 +181,7 @@ jobs:
           - package: frontend
             triggers: ('frontend/')
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - name: Test Builds
         uses: bcgov/action-builder-ghcr@vX.Y.Z
         with:
