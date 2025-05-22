@@ -230,6 +230,8 @@ runs:
     - name: Print summary outputs
       shell: bash
       run: |
+        echo "---- Build Summary ----"
         echo "digest: ${{ steps.build_and_push.outputs.digest }}"
         echo "triggered: ${{ steps.diff.outputs.triggered }}"
         echo "tags_csv: ${{ steps.vars.outputs.tags_csv }}"
+        echo "-----------------------"
