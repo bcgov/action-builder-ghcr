@@ -46,6 +46,7 @@ inputs:
     default: ${{ github.repository }}
   tag:
     description: Deprecated input; use tags instead
+    deprecationMessage: "Input 'tag' is deprecated and will be removed in a future release. Please use 'tags' instead."
   token:
     description: Specify token (GH or PAT), instead of inheriting one from the calling workflow
     default: ${{ github.token }}
@@ -53,7 +54,7 @@ inputs:
 outputs:
   digest:
     description: 'Digest of the built image; e.g. sha256:1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef'
-    value: ${{ steps.digest.outputs.digest }}
+    value: ${{ steps.build_and_push.outputs.digest }}
 
   triggered:
     description: Did a deployment trigger?  [true|false]
@@ -66,55 +67,46 @@ runs:
     - name: GHCR Cleanup
       if: inputs.keep_versions
       continue-on-error: true # Stop fail if no versions to delete
-      uses: actions/delete-package-versions@e5bc658cc4c965c472efe991f8beea3981499c55 # v5.0.0
+      uses: actions/delete-package-versions@v5.0.0
       with:
         package-name: "${{ github.event.repository.name }}/${{ inputs.package }}"
         package-type: "container"
         min-versions-to-keep: ${{ inputs.keep_versions }}
         ignore-versions: "${{ inputs.keep_regex }}"
 
-    # Process variables and inputs
     - id: vars
       shell: bash
+      env:
+        INPUT_BUILD_CONTEXT: ${{ inputs.build_context }}
+        INPUT_BUILD_FILE: ${{ inputs.build_file }}
+        INPUT_PACKAGE: ${{ inputs.package }}
       run: |
-        # Inputs and variables
+        # Process inputs and set variables
+        set -euo pipefail
 
-        # If inputs.tag is provided say it has been deprecated and exit 1
+        # Early exit for deprecated input
         if [ -n "${{ inputs.tag }}" ]; then
-          echo "Input 'tag' is deprecated.  Please use 'tags' instead."
+          echo "Input 'tag' is deprecated. Please use 'tags' instead."
           exit 1
         fi
 
-        # Use package folder as build_context unless an override has been provided
-        if [ -z ${{ inputs.build_context }} ]; then
-          BUILD_CONTEXT=${{ inputs.package }}
-        else
-          BUILD_CONTEXT=${{ inputs.build_context }}
-        fi
-        echo "build_context=${BUILD_CONTEXT}" >> $GITHUB_OUTPUT
+        # Set build context and file with defaults
+        build_context="${INPUT_BUILD_CONTEXT:-$INPUT_PACKAGE}"
+        build_file="${INPUT_BUILD_FILE:-${build_context}/Dockerfile}"
 
-        # Use BUILD_CONTEXT/Dockerfile as build_file unless an override has been provided
-        if [ -z ${{ inputs.build_file }} ]; then
-          BUILD_FILE=${BUILD_CONTEXT}/Dockerfile
-        else
-          BUILD_FILE=${{ inputs.build_file }}
-        fi
-        echo "build_file=${BUILD_FILE}" >> $GITHUB_OUTPUT
+        # Process tags into comma-separated list of full image paths (concise version)
+        mapfile -t tags < <(printf '%s\n' "${{ inputs.tags }}" | tr '[:upper:]' '[:lower:]' | tr -d ' ' | grep -v '^$')
+        tags=("${tags[@]/#/ghcr.io/${{ github.repository }}/${INPUT_PACKAGE}:}")
+        tags_csv=$(IFS=, ; echo "${tags[*]}")
 
-        # Bug - Docker build hates images with capital letters
-        # Convert multiline tags input to a comma-separated list of full image paths (lowercase, no spaces)
-        TAGS=""
-        while IFS= read -r tag || [ -n "$tag" ]; do
-          tag_lowercase=$(echo "$tag" | tr '[:upper:]' '[:lower:]' | tr -d ' ')
-          [ -z "$tag_lowercase" ] && continue
-          full_tag="ghcr.io/${{ github.repository }}/${{ inputs.package }}:$tag_lowercase"
-          if [ -z "$TAGS" ]; then
-            TAGS="$full_tag"
-          else
-            TAGS="$TAGS,$full_tag"
+        # Output all variables at once, and verify they are set
+        for v in build_context build_file tags_csv; do
+          if [ -z "${!v}" ]; then
+            echo "Error: $v is not set!" >&2
+            exit 1
           fi
-        done <<< "${{ inputs.tags }}"
-        echo "tags=$TAGS" >> $GITHUB_OUTPUT
+          echo "$v=${!v}" >> "$GITHUB_OUTPUT"
+        done
 
     # Send triggers to diff action
     - id: diff
@@ -131,19 +123,20 @@ runs:
       shell: bash
       run: |
         # Check for builds
-        echo "triggered=true" >> $GITHUB_OUTPUT
+        triggered=true
         if [ "${{ steps.diff.outputs.triggered }}" == "true" ]; then
           echo "Build triggered. Used bcgov/action-diff-triggers."
         elif [ "${{ inputs.repository }}" != "${{ github.repository }}" ]; then
           echo "Build triggered.  Override repository provided."
         elif [ -z "${{ inputs.tag_fallback }}" ]; then
           echo "Build triggered.  No tag_fallback provided."
-        elif [[ ! $(docker manifest inspect ${URL_FALLBACK}) ]]; then
+        elif [[ ! $(docker manifest inspect "${URL_FALLBACK}") ]]; then
           echo "Build triggered.  Fallback tag (tag_fallback) not usable."
         else
           echo "Container build not required"
-          echo "triggered=false" >> $GITHUB_OUTPUT
+          triggered=false
         fi
+        echo "triggered=$triggered" >> $GITHUB_OUTPUT
 
     # If a build is not required, reuse a previous image
     - name: Recycle/retag Previous Images
@@ -156,25 +149,37 @@ runs:
         tags: |
           ${{ inputs.tags }}
 
-    # If a build is required, then checkout, login, build and push!
-    - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+    - uses: actions/checkout@v4
       with:
         repository: ${{ inputs.repository }}
 
     - name: Add build envars to Dockerfile
       if: steps.build.outputs.triggered == 'true'
       env:
-        dockerfile: ${{ steps.vars.outputs.build_file }}
+        DOCKERFILE: ${{ steps.vars.outputs.build_file }}
       shell: bash
       run: |
-        # Add build envars to Dockerfile (pad for missing line endings!)
-        echo "" >> ${{ env.dockerfile }}
-        echo "ENV BUILDER_IMAGE=ghcr.io/${{ github.repository }}/${{ inputs.package }}" >> ${{ env.dockerfile }}
-        echo "ENV BUILDER_PACKAGE=${{ inputs.package }}" >> ${{ env.dockerfile }}
-        echo "ENV BUILDER_REPO=${{ github.repository }}" >> ${{ env.dockerfile }}
-        # Convert multiline tags to a single comma-separated string for BUILDER_TAGS
-        TAGS_COMMA=$(echo "${{ inputs.tags }}" | tr '\n' ',' | tr -s ',' | sed 's/,$//')
-        echo "ENV BUILDER_TAGS=\"$TAGS_COMMA\"" >> ${{ env.dockerfile }}
+        # Add build envars to DOCKERFILE
+        set -euo pipefail
+
+        # Diagnostics and validation for DOCKERFILE path
+        echo "[DIAG] Checking DOCKERFILE path: $DOCKERFILE"
+        if [ ! -e "$DOCKERFILE" ]; then
+          echo "[DIAG] DOCKERFILE does not exist at $DOCKERFILE" >&2
+          ls -l "$(dirname \"$DOCKERFILE\")" || true
+          exit 1
+        elif [ ! -w "$DOCKERFILE" ]; then
+          echo "[DIAG] DOCKERFILE is not writable at $DOCKERFILE" >&2
+          ls -l "$DOCKERFILE" || true
+          exit 1
+        else
+          # Add build envars to DOCKERFILE (pad for missing line endings)
+          {
+            echo ""
+            echo "ENV BUILDER_IMAGE=ghcr.io/${{ github.repository }}/${{ inputs.package }}"
+            echo "ENV BUILDER_TAGS=${{ steps.vars.outputs.tags_csv }}"
+          } >> "$DOCKERFILE"
+        fi
 
     - name: Set up Docker Buildx
       if: steps.build.outputs.triggered == 'true'
@@ -189,13 +194,14 @@ runs:
         password: ${{ inputs.token }} 
 
     - name: Build and push ${{ inputs.package }} Docker image
+      id: build_and_push
       if: steps.build.outputs.triggered == 'true'
       uses: docker/build-push-action@14487ce63c7a62a4a324b0bfb37086795e31c6c1 # v6
       with:
         context: ${{ steps.vars.outputs.build_context }}
         file: ${{ steps.vars.outputs.build_file }}
         push: true
-        tags: ${{ steps.vars.outputs.tags }}
+        tags: ${{ steps.vars.outputs.tags_csv }}
         cache-from: type=gha
         cache-to: type=gha,mode=max
         build-args: ${{ inputs.build_args }}
@@ -203,20 +209,27 @@ runs:
     # Action repo needs to be present for cleanup/tests
     - name: Checkout local repo to make sure action.yml is present
       if: github.repository != inputs.repository
-      uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+      uses: actions/checkout@v4
 
-    # Get the digest of the built image
-    - name: Return digest of the built image
+    # Get the digest of the built image from the build-push-action output
+    - name: Validate digest
+      env:
+        IMAGE: ghcr.io/${{ github.repository }}/${{ inputs.package }}@${{ steps.build_and_push.outputs.digest }}
       id: digest
+      if: steps.build.outputs.triggered == 'true'
       shell: bash
       run: |
-        # Get the digest of the first image in the comma-separated tags list
-        FIRST_TAG=$(echo "${{ steps.vars.outputs.tags }}" | cut -d, -f1)
-        DIGEST=$(docker manifest inspect "$FIRST_TAG" | jq -r '.manifests[0].digest')
-        echo "digest=${DIGEST}" >> $GITHUB_OUTPUT
+        # Validate digest using docker manifest inspect (faster than docker pull)
+        if ! docker manifest inspect "$IMAGE" > /dev/null; then
+          echo "Error: Failed to inspect manifest for $IMAGE" >&2
+          exit 1
+        fi
 
-    - shell: bash
+    - name: Print summary outputs
+      shell: bash
       run: |
-        # Summary
-        echo "digest: ${{ steps.digest.outputs.digest }}"
+        echo "---- Build Summary ----"
+        echo "digest: ${{ steps.build_and_push.outputs.digest }}"
         echo "triggered: ${{ steps.diff.outputs.triggered }}"
+        echo "tags_csv: ${{ steps.vars.outputs.tags_csv }}"
+        echo "-----------------------"

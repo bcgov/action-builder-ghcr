@@ -46,6 +46,7 @@ Only GitHub Container Registry (ghcr.io) is supported so far.
 
     # Tags to apply to the image
     # Optional, defaults to pull request number
+    # Note: All tags are normalized to lowercase and stripped of spaces before use.
     tags: |
       pr123
       demo
@@ -87,7 +88,7 @@ Only GitHub Container Registry (ghcr.io) is supported so far.
 
 Build a single subfolder with a Dockerfile in it.  Deletes old packages, keeping the last 50.  Runs on pull requests (PRs).
 
-Create or modify a GitHub workflow, like below.  E.g. `./github/workflows/pr-open.yml`
+Create or modify a GitHub workflow, like below.  E.g. `.github/workflows/pr-open.yml`
 
 ```yaml
 name: Pull Request
@@ -105,7 +106,7 @@ jobs:
       packages: write
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - name: Builds
         uses: bcgov/action-builder-ghcr@vX.Y.Z
         with:
@@ -118,7 +119,7 @@ jobs:
 
 Same as previous, but specifying build folder and Dockerfile.
 
-Create or modify a GitHub workflow, like below.  E.g. `./github/workflows/pr-open.yml`
+Create or modify a GitHub workflow, like below.  E.g. `.github/workflows/pr-open.yml`
 
 ```yaml
 name: Pull Request
@@ -136,7 +137,7 @@ jobs:
       packages: write
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - name: Builds
         uses: bcgov/action-builder-ghcr@vX.Y.Z
         with:
@@ -156,7 +157,7 @@ jobs:
 
 Build from multiple subfolders with Dockerfile in them.  This time an outside repository is used.  Runs on pull requests (PRs).
 
-Create or modify a GitHub workflow, like below.  E.g. `./github/workflows/pr-open.yml`
+Create or modify a GitHub workflow, like below.  E.g. `.github/workflows/pr-open.yml`
 
 ```yaml
 name: Pull Request
@@ -182,7 +183,7 @@ jobs:
           - package: frontend
             triggers: ('frontend/')
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - name: Test Builds
         uses: bcgov/action-builder-ghcr@vX.Y.Z
         with:
@@ -196,6 +197,11 @@ jobs:
 ```
 
 # Outputs
+
+| Output     | Description                                 |
+|------------|---------------------------------------------|
+| `digest`   | Digest of the built or retagged image       |
+| `triggered`| Whether a build was triggered (`true/false`)|
 
 New image digest (SHA).  This applies to build and retags.
 
@@ -234,7 +240,8 @@ permissions:
 
 # Deprecations
 
-- The `tag` input has been deprecated in favor of `tags`, a multiline string that can handle multiple values.
+> ⚠️ **Deprecated:** The `tag` input has been deprecated in favor of `tags`, a multiline string that can handle multiple values. The `tag` input will be removed in a future release.
+
 - The `digest_old` output has been deprecated due to non-use.
 - The `digest_new` output has been renamed to `digest`.
 

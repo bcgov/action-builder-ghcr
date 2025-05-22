@@ -15,17 +15,13 @@ jobs:
     name: Build
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+      - uses: actions/checkout@v4
       - id: build
         uses: ./
         with:
           package: backend
           keep_versions: 10
           repository: bcgov/quickstart-openshift
-          tags: |
-            ${{ github.event.number }}
-            ${{ github.event.number }}-multiline
-            pr-latest
 
       - if: steps.build.outputs.triggered != 'false'
         run: |
@@ -44,7 +40,7 @@ jobs:
     name: Retag
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+      - uses: actions/checkout@v4
       - id: retag
         uses: ./
         with:
@@ -71,7 +67,7 @@ jobs:
     name: Advanced
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+      - uses: actions/checkout@v4
       - id: advanced
         uses: ./
         with:
@@ -80,7 +76,10 @@ jobs:
           build_file: api/Dockerfile
           keep_versions: 10
           repository: bcgov/nr-fom
-          tags: ${{ github.event.number }}
+          tags:
+            ${{ github.event.number }}
+            ${{ github.event.number }}-multiline
+            pr-latest
 
       - if: steps.advanced.outputs.triggered != 'false'
         run: |
