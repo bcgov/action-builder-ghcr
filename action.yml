@@ -177,7 +177,7 @@ runs:
           {
             echo ""
             echo "ENV BUILDER_IMAGE=ghcr.io/${{ github.repository }}/${{ inputs.package }}"
-            echo "ENV BUILDER_TAGS=\"$(echo ${{ inputs.tags }} | tr '\n' ' ' | xargs)\""
+            echo "ENV BUILDER_TAGS=${{ steps.vars.outputs.tags_csv }}"
           } >> "$DOCKERFILE"
         fi
 
