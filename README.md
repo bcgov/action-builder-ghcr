@@ -46,6 +46,7 @@ Only GitHub Container Registry (ghcr.io) is supported so far.
 
     # Tags to apply to the image
     # Optional, defaults to pull request number
+    # Note: All tags are normalized to lowercase and stripped of spaces before use.
     tags: |
       pr123
       demo
@@ -197,6 +198,11 @@ jobs:
 
 # Outputs
 
+| Output     | Description                                 |
+|------------|---------------------------------------------|
+| `digest`   | Digest of the built or retagged image       |
+| `triggered`| Whether a build was triggered (`true/false`)|
+
 New image digest (SHA).  This applies to build and retags.
 
 ```yaml
@@ -234,7 +240,8 @@ permissions:
 
 # Deprecations
 
-- The `tag` input has been deprecated in favor of `tags`, a multiline string that can handle multiple values.
+> ⚠️ **Deprecated:** The `tag` input has been deprecated in favor of `tags`, a multiline string that can handle multiple values. The `tag` input will be removed in a future release.
+
 - The `digest_old` output has been deprecated due to non-use.
 - The `digest_new` output has been renamed to `digest`.
 
