@@ -208,7 +208,7 @@ runs:
 
     # Action repo needs to be present for cleanup/tests
     - name: Checkout local repo to make sure action.yml is present
-      if: github.repository != inputs.repository || failure()
+      if: github.repository != inputs.repository
       uses: actions/checkout@v4
 
     # Get the digest of the built image from the build-push-action output
