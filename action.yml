@@ -105,7 +105,7 @@ runs:
             echo "Error: $v is not set!" >&2
             exit 1
           fi
-          echo "$v=${!v}" >> $GITHUB_OUTPUT
+          echo "$v=${!v}" >> "$GITHUB_OUTPUT"
         done
 
     # Send triggers to diff action
