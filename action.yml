@@ -163,12 +163,9 @@ runs:
 
         # Diagnostics and validation for DOCKERFILE path
         echo "[DIAG] Checking DOCKERFILE path: $DOCKERFILE"
-        if [ -z "$DOCKERFILE" ]; then
-          echo "[DIAG] DOCKERFILE is not set!" >&2
-          exit 1
-        elif [ ! -e "$DOCKERFILE" ]; then
+        if [ ! -e "$DOCKERFILE" ]; then
           echo "[DIAG] DOCKERFILE does not exist at $DOCKERFILE" >&2
-          ls -l "$(dirname \"$DOCKERFILE\")" || echo "[DIAG] Directory does not exist: $(dirname \"$DOCKERFILE\")" >&2
+          ls -l "$(dirname \"$DOCKERFILE\")" || true
           exit 1
         elif [ ! -w "$DOCKERFILE" ]; then
           echo "[DIAG] DOCKERFILE is not writable at $DOCKERFILE" >&2
