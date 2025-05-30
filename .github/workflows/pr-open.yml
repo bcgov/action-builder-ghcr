@@ -89,3 +89,32 @@ jobs:
             echo "Error!  Verify outputs."
             exit 1
           fi
+  # FOM apps build from repo root, above their Dockerfiles (extra params)
+  uppercase:
+    permissions:
+      packages: write
+    name: Uppercase
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - id: advanced
+        uses: ./
+        with:
+          package: api
+          build_context: ./api
+          build_file: api/Dockerfile
+          keep_versions: 10
+          repository: bcgov/NRPTI
+          tags:
+            ${{ github.event.number }}-test
+            ${{ github.event.number }}-multiline
+            pr-latest
+
+      - if: steps.advanced.outputs.triggered != 'false'
+        run: |
+          # Verify outputs
+          echo "Outputs: ${{ toJSON(steps.advanced.outputs) }}"
+          if [ -z "${{ steps.advanced.outputs.digest }}" ]|| [ "${{ steps.advanced.outputs.triggered }}" != "true" ]; then
+            echo "Error!  Verify outputs."
+            exit 1
+          fi
