@@ -93,7 +93,7 @@ jobs:
   uppercase:
     permissions:
       packages: write
-    name: Advanced
+    name: Uppercase
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
@@ -101,7 +101,7 @@ jobs:
         uses: ./
         with:
           package: api
-          build_context: .
+          build_context: ./api
           build_file: api/Dockerfile
           keep_versions: 10
           repository: bcgov/NRPTI
