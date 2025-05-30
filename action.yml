@@ -97,7 +97,7 @@ runs:
         # Process tags into comma-separated list of full image paths (concise version)
         mapfile -t tags < <(printf '%s\n' "${{ inputs.tags }}" | tr '[:upper:]' '[:lower:]' | tr -d ' ' | grep -v '^$')
         # make the repository lowercase
-        repo_lower=$(echo "${{ github.repository }}" | tr '[:upper:]' '[:lower:]')
+        repo_lower="${{ github.repository,, }}"
         # make the package lowercase
         package_lower=$(echo "$INPUT_PACKAGE" | tr '[:upper:]' '[:lower:]')
         tags=("${tags[@]/#/ghcr.io/${repo_lower}/${package_lower}:}")
