@@ -96,11 +96,15 @@ runs:
 
         # Process tags into comma-separated list of full image paths (concise version)
         mapfile -t tags < <(printf '%s\n' "${{ inputs.tags }}" | tr '[:upper:]' '[:lower:]' | tr -d ' ' | grep -v '^$')
-        tags=("${tags[@]/#/ghcr.io/${{ github.repository }}/${INPUT_PACKAGE}:}")
+        # make the repository lowercase
+        repo_lower=$(echo "${{ github.repository }}" | tr '[:upper:]' '[:lower:]')
+        # make the package lowercase
+        package_lower=$(echo "$INPUT_PACKAGE" | tr '[:upper:]' '[:lower:]')
+        tags=("${tags[@]/#/ghcr.io/${repo_lower}/${package_lower}:}")
         tags_csv=$(IFS=, ; echo "${tags[*]}")
 
         # Output all variables at once, and verify they are set
-        for v in build_context build_file tags_csv; do
+        for v in build_context build_file tags_csv repo_lower package_lower; do
           if [ -z "${!v}" ]; then
             echo "Error: $v is not set!" >&2
             exit 1
@@ -118,7 +122,7 @@ runs:
     # Check if a build is required (steps.build.outputs.triggered=true|false)
     - name: Check for builds
       env:
-        URL_FALLBACK: ghcr.io/${{ inputs.repository }}/${{ inputs.package }}:${{ inputs.tag_fallback }}
+        URL_FALLBACK: ghcr.io/${{ steps.vars.outputs.repo_lower }}/${{ steps.vars.outputs.package_lower }}:${{ inputs.tag_fallback }}
       id: build
       shell: bash
       run: |
@@ -144,7 +148,7 @@ runs:
       if: steps.build.outputs.triggered != 'true'
       with:
         registry: ghcr.io
-        repository: ${{ inputs.repository }}/${{ inputs.package }}
+        repository: ${{ steps.vars.outputs.repo_lower }}/${{ steps.vars.outputs.package_lower }}
         target: ${{ inputs.tag_fallback }}
         tags: |
           ${{ inputs.tags }}
@@ -176,7 +180,7 @@ runs:
           # Add build envars to DOCKERFILE (pad for missing line endings)
           {
             echo ""
-            echo "ENV BUILDER_IMAGE=ghcr.io/${{ github.repository }}/${{ inputs.package }}"
+            echo "ENV BUILDER_IMAGE=ghcr.io/${{ steps.vars.outputs.repo_lower }}/${{ steps.vars.outputs.package_lower }}"
             echo "ENV BUILDER_TAGS=${{ steps.vars.outputs.tags_csv }}"
           } >> "$DOCKERFILE"
         fi
@@ -214,7 +218,7 @@ runs:
     # Get the digest of the built image from the build-push-action output
     - name: Validate digest
       env:
-        IMAGE: ghcr.io/${{ github.repository }}/${{ inputs.package }}@${{ steps.build_and_push.outputs.digest }}
+        IMAGE: ghcr.io/${{ steps.vars.outputs.repo_lower }}/${{ steps.vars.outputs.package_lower }}@${{ steps.build_and_push.outputs.digest }}
       id: digest
       if: steps.build.outputs.triggered == 'true'
       shell: bash
