@@ -68,6 +68,7 @@ jobs:
     permissions:
       attestations: none
       id-token: none
+      packages: write
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
