@@ -210,6 +210,15 @@ runs:
         cache-to: type=gha,mode=max
         build-args: ${{ inputs.build_args }}
 
+    - name: Attest
+      uses: actions/attest@v2.3.0
+      if: steps.build.outputs.triggered == 'true'
+      with:
+        subject-name: ghcr.io/${{ github.event.repository.name }}/${{ inputs.package }}
+        subject-digest: ${{ steps.build_and_push.outputs.digest }}
+        predicate-type: 'https://in-toto.io/attestation/release/v0.1'
+        predicate: '{"purl":"pkg:oci/${{ github.event.repository.name }}/${{ inputs.package }}"}'
+
     # Action repo needs to be present for cleanup/tests
     - name: Checkout local repo to make sure action.yml is present
       if: github.repository != inputs.repository
