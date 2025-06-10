@@ -157,34 +157,6 @@ runs:
       with:
         repository: ${{ inputs.repository }}
 
-    - name: Add build envars to Dockerfile
-      if: steps.build.outputs.triggered == 'true'
-      env:
-        DOCKERFILE: ${{ steps.vars.outputs.build_file }}
-      shell: bash
-      run: |
-        # Add build envars to DOCKERFILE
-        set -euo pipefail
-
-        # Diagnostics and validation for DOCKERFILE path
-        echo "[DIAG] Checking DOCKERFILE path: $DOCKERFILE"
-        if [ ! -e "$DOCKERFILE" ]; then
-          echo "[DIAG] DOCKERFILE does not exist at $DOCKERFILE" >&2
-          ls -l "$(dirname \"$DOCKERFILE\")" || true
-          exit 1
-        elif [ ! -w "$DOCKERFILE" ]; then
-          echo "[DIAG] DOCKERFILE is not writable at $DOCKERFILE" >&2
-          ls -l "$DOCKERFILE" || true
-          exit 1
-        else
-          # Add build envars to DOCKERFILE (pad for missing line endings)
-          {
-            echo ""
-            echo "ENV BUILDER_IMAGE=ghcr.io/${{ steps.vars.outputs.repo_lower }}/${{ steps.vars.outputs.package_lower }}"
-            echo "ENV BUILDER_TAGS=${{ steps.vars.outputs.tags_csv }}"
-          } >> "$DOCKERFILE"
-        fi
-
     - name: Set up Docker Buildx
       if: steps.build.outputs.triggered == 'true'
       uses: docker/setup-buildx-action@v3
