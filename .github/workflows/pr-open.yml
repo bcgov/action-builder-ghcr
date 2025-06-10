@@ -61,6 +61,35 @@ jobs:
             exit 1
           fi
 
+  # No attestation, no id-token, no build
+  no-attestation:
+    needs: [build]
+    name: No Attestation
+    permissions:
+      attestations: none
+      id-token: none
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - id: no-attestation
+        uses: ./
+        with:
+          package: backend
+          keep_versions: 10
+          repository: bcgov/quickstart-openshift
+          tags: ${{ github.event.number }}-no-attestation
+          tag_fallback: test
+          triggers: ('backend/')
+
+      - if: steps.no-attestation.outputs.triggered != 'false'
+        run: |
+          # Verify outputs
+          echo "Outputs: ${{ toJSON(steps.retag.outputs) }}"
+          if [ -z "${{ steps.no-attestation.outputs.digest }}" ] || [ "${{ steps.no-attestation.outputs.triggered }}" != "true" ]; then
+            echo "Error!  Verify outputs."
+            exit 1
+          fi
+
   # FOM apps build from repo root, above their Dockerfiles (extra params)
   advanced:
     name: Advanced
