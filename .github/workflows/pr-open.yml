@@ -84,7 +84,7 @@ jobs:
       - if: steps.no-attestation.outputs.triggered != 'false'
         run: |
           # Verify outputs
-          echo "Outputs: ${{ toJSON(steps.retag.outputs) }}"
+          echo "Outputs: ${{ toJSON(steps.no-attestation.outputs) }}"
           if [ -z "${{ steps.no-attestation.outputs.digest }}" ] || [ "${{ steps.no-attestation.outputs.triggered }}" != "true" ]; then
             echo "Error!  Verify outputs."
             exit 1
@@ -120,7 +120,7 @@ jobs:
 
   results:
     name: PR Results
-    needs: [advanced, build, retag]
+    needs: [advanced, build, no-attestation, retag]
     if: always()
     runs-on: ubuntu-24.04
     steps:
