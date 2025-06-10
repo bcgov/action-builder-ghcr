@@ -187,24 +187,20 @@ runs:
       if: steps.build.outputs.triggered == 'true'
       shell: bash
       run: |
-        # Default to false
-        has_permissions="false"
-        
         # Get workflow permissions
         PERMISSIONS=$(curl -s -H "Authorization: Bearer ${{ inputs.token }}" \
           "https://api.github.com/repos/${{ github.repository }}/actions/workflows/${{ github.workflow }}/permissions")
         
         # Check for both id-token:write and attestations:write permissions
         if echo "$PERMISSIONS" | grep -q '"id-token":[[:space:]]*"write"' && \
-           echo "$PERMISSIONS" | grep -q '"attestations":[[:space:]]*"write"'; then
-          has_permissions="true"
+           echo "$PERMISSIONS" | grep -q '"attestations":[[:space:]]*"write"'
+        then
           echo "Both id-token:write and attestations:write permissions are available"
+          echo "has_permissions=true" >> $GITHUB_OUTPUT
         else
           echo "Missing required permissions. Both id-token:write and attestations:write are needed for attestation"
         fi
         
-        echo "has_permissions=$has_permissions" >> $GITHUB_OUTPUT
-
     - name: Attest
       uses: actions/attest@v2.3.0
       if: steps.build.outputs.triggered == 'true' && steps.check_permissions.outputs.has_permissions == 'true'
