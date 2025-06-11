@@ -90,7 +90,7 @@ Only GitHub Container Registry (ghcr.io) is supported so far.
 
 # Example, Single Build
 
-Build a single subfolder with a Dockerfile in it.  Deletes old packages, keeping the last 50.  Runs on pull requests (PRs).
+Build a single subfolder with a Dockerfile in it.  Runs on pull requests (PRs).
 
 ```yaml
 builds:
