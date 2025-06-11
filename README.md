@@ -4,7 +4,7 @@
 [![MIT License](https://img.shields.io/github/license/bcgov/action-builder-ghcr.svg)](/LICENSE)
 [![Lifecycle](https://img.shields.io/badge/Lifecycle-Experimental-339999)](https://github.com/bcgov/repomountie/blob/master/doc/lifecycle-badges.md)
 
-# Conditional Container Builder with Fallback and Attestations (SBOMs)
+# Conditional Container Builder with Fallback, Attestations and SBOMs (Software Bill of Materials)
 
 This action builds Docker/Podman containers conditionally using a set of directories.  If any files were changed matching that, then build a container.  If those files were not changed, retag an existing build.
 
@@ -71,6 +71,10 @@ Only GitHub Container Registry (ghcr.io) is supported so far.
     # Useful for consuming other repos, like in testing
     # Defaults to the current one
     repository: ${{ github.repository }}
+
+    # SBOM generation is enabled by default as a security best practice
+    # String value, not boolean
+    sbom: 'true'
 
     # Specify token (GH or PAT), instead of inheriting one from the calling workflow
     token: ${{ secrets.GITHUB_TOKEN }}
@@ -152,49 +156,39 @@ builds:
 
 ```
 
-# Permissions
+# Security Features
 
-It is good practice to set explicit permissions for jobs and workflows. These are applied to the GITHUB_TOKEN. Please see the [GitHub documentation](https://docs.github.com/en/actions/writing-workflows/choosing-what-your-workflow-does/controlling-permissions-for-github_token) for more information.
-
-The following permissions are used by this action:
-
-```yaml
-permissions:
-  packages: write      # Required for pushing images
-  id-token: write      # Optional: Required for OIDC token generation
-  attestations: write  # Optional: Required for creating attestations
-```
+This action provides two key security features: Container Attestations and Software Bill of Materials (SBOM) generation.
 
 ## Container Attestations
 
-This action supports [container attestations](https://docs.github.com/en/actions/security-guides/security-hardening-with-openid-connect#about-oidc-and-container-signing) using GitHub's OIDC token. Attestations provide cryptographic verification of container images, enhancing supply chain security.
+[Container attestations](https://docs.github.com/en/actions/security-guides/security-hardening-with-openid-connect#about-oidc-and-container-signing) use GitHub's OIDC token to provide cryptographic proof of:
+- Where the container was built (GitHub Actions)
+- When it was built (timestamp)
+- What repository and workflow built it
+- What inputs and environment were used
 
-If the `id-token: write` and `attestations: write` permissions are not granted, the action will still build and push images but will skip the attestation step. This allows the action to work in environments both with and without attestation support.
-
-Example workflow with all permissions enabled:
-
+Attestations require the following permissions:
 ```yaml
-name: Build with Attestations
-
-on:
-  pull_request:
-
 permissions:
-  attestations: write
-  id-token: write
-  packages: write
-
-jobs:
-  build:
-    runs-on: ubuntu-24.04
-    steps:
-      - uses: actions/checkout@v4
-      - uses: bcgov/action-builder-ghcr@vX.Y.Z
-        with:
-          package: frontend
-          tag_fallback: test
-          triggers: ('frontend/')
+  packages: write      # Required for pushing images
+  id-token: write      # Required for OIDC token generation
+  attestations: write  # Required for creating attestations
 ```
+
+If these permissions are not granted, the action will still build and push images but skip the attestation step.
+
+## Software Bill of Materials (SBOM)
+
+This action automatically generates SBOMs for all container builds using [Syft](https://github.com/anchore/syft). SBOMs provide a detailed inventory that includes:
+- All installed packages and their versions
+- Dependencies and their relationships
+- License information
+- Known vulnerabilities
+
+Two SBOM formats are generated and uploaded as workflow artifacts:
+- CycloneDX JSON
+- SPDX JSON
 
 # Outputs
 

@@ -15,6 +15,9 @@ inputs:
     description: Build context, not required for self-contained package/default directory
   build_file:
     description: Dockerfile with path, not required for self-contained package/default directory
+  sbom:
+    default: 'true'
+    description: Generate a Software Bill of Materials (SBOM) for the container image. Enabled by default for better security practices.
   keep_versions:
     description: Number of versions to keep; omit to skip
   tag_fallback:
@@ -181,6 +184,40 @@ runs:
         cache-from: type=gha
         cache-to: type=gha,mode=max
         build-args: ${{ inputs.build_args }}
+
+    - name: Install Syft
+      if: steps.build.outputs.triggered == 'true' && inputs.sbom == 'true'
+      shell: bash
+      run: |
+        curl -sSfL https://raw.githubusercontent.com/anchore/syft/main/install.sh | sh -s -- -b /usr/local/bin
+
+    - name: Generate SBOM
+      if: steps.build.outputs.triggered == 'true' && inputs.sbom == 'true'
+      shell: bash
+      run: |
+        # Generate SBOM in both cyclonedx and spdx formats
+        IMAGE="ghcr.io/${{ steps.vars.outputs.repo_lower }}/${{ steps.vars.outputs.package_lower }}@${{ steps.build_and_push.outputs.digest }}"
+        
+        # Create SBOMs directory
+        mkdir -p sboms
+        
+        # Generate CycloneDX SBOM
+        syft packages "$IMAGE" -o cyclonedx-json > "sboms/${{ inputs.package }}-cyclonedx.json"
+        
+        # Generate SPDX SBOM
+        syft packages "$IMAGE" -o spdx-json > "sboms/${{ inputs.package }}-spdx.json"
+        
+        # Upload SBOMs as artifacts
+        echo "sbom_cyclonedx=sboms/${{ inputs.package }}-cyclonedx.json" >> $GITHUB_OUTPUT
+        echo "sbom_spdx=sboms/${{ inputs.package }}-spdx.json" >> $GITHUB_OUTPUT
+
+    - name: Upload SBOMs
+      uses: actions/upload-artifact@v4
+      if: steps.build.outputs.triggered == 'true' && inputs.sbom == 'true'
+      with:
+        name: sboms-${{ inputs.package }}
+        path: sboms/
+        if-no-files-found: error
 
     - name: Check attestation permissions
       id: check_permissions

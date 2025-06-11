@@ -35,35 +35,8 @@ jobs:
             exit 1
           fi
 
-  # Anything can be retagged if a fallback image exists (e.g. test)
-  retag:
-    needs: [build]
-    name: Retag
-    runs-on: ubuntu-24.04
-    steps:
-      - uses: actions/checkout@v4
-      - id: retag
-        uses: ./
-        with:
-          package: backend
-          keep_versions: 10
-          repository: bcgov/quickstart-openshift
-          tags: ${{ github.event.number }}-retag
-          tag_fallback: test
-          triggers: ('backend/')
-
-      - if: steps.retag.outputs.triggered != 'false'
-        run: |
-          # Verify outputs
-          echo "Outputs: ${{ toJSON(steps.retag.outputs) }}"
-          if [ -z "${{ steps.retag.outputs.digest }}" ] || [ "${{ steps.retag.outputs.triggered }}" != "true" ]; then
-            echo "Error!  Verify outputs."
-            exit 1
-          fi
-
   # No attestation, no id-token, no build
   no-attestation:
-    needs: [build]
     name: No Attestation
     permissions:
       attestations: none
@@ -75,12 +48,13 @@ jobs:
       - id: no-attestation
         uses: ./
         with:
-          package: backend
+          package: frontend
+          build_context: frontend
           keep_versions: 10
           repository: bcgov/quickstart-openshift
           tags: ${{ github.event.number }}-no-attestation
           tag_fallback: test
-          triggers: ('backend/')
+          triggers: ('frontend/')
 
       - if: steps.no-attestation.outputs.triggered != 'false'
         run: |
@@ -121,7 +95,7 @@ jobs:
 
   results:
     name: PR Results
-    needs: [advanced, build, no-attestation, retag]
+    needs: [advanced, build, no-attestation]
     if: always()
     runs-on: ubuntu-24.04
     steps:
