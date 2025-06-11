@@ -73,7 +73,8 @@ Only GitHub Container Registry (ghcr.io) is supported so far.
     repository: ${{ github.repository }}
 
     # SBOM generation is enabled by default as a security best practice
-    sbom: true
+    # String value, not boolean
+    sbom: 'true'
 
     # Specify token (GH or PAT), instead of inheriting one from the calling workflow
     token: ${{ secrets.GITHUB_TOKEN }}
