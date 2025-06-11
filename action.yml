@@ -218,11 +218,12 @@ runs:
         name: sboms-${{ inputs.package }}
         path: sboms/
         if-no-files-found: error
-        
-    - name: Attest
-      uses: actions/attest@v2.3.0
-      if: steps.build.outputs.triggered == 'true'
+
+    - name: Attestation
       continue-on-error: true
+      id: attestation
+      if: steps.build.outputs.triggered == 'true'
+      uses: actions/attest@v2.3.0
       with:
         subject-name: ghcr.io/${{ github.event.repository.name }}/${{ inputs.package }}
         subject-digest: ${{ steps.build_and_push.outputs.digest }}
@@ -230,7 +231,7 @@ runs:
         predicate: '{"purl":"pkg:oci/${{ github.event.repository.name }}/${{ inputs.package }}"}'
 
     - name: Prompt user to fix permissions
-      if: failure()
+      if: steps.attestation.outcome == 'failure'
       shell: bash
       run: |
         echo "::warning::Attestation skipped due to missing id-token:write and attestations:write permissions. Please update workflow permissions."
