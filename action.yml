@@ -157,34 +157,6 @@ runs:
       with:
         repository: ${{ inputs.repository }}
 
-    - name: Add build envars to Dockerfile
-      if: steps.build.outputs.triggered == 'true'
-      env:
-        DOCKERFILE: ${{ steps.vars.outputs.build_file }}
-      shell: bash
-      run: |
-        # Add build envars to DOCKERFILE
-        set -euo pipefail
-
-        # Diagnostics and validation for DOCKERFILE path
-        echo "[DIAG] Checking DOCKERFILE path: $DOCKERFILE"
-        if [ ! -e "$DOCKERFILE" ]; then
-          echo "[DIAG] DOCKERFILE does not exist at $DOCKERFILE" >&2
-          ls -l "$(dirname \"$DOCKERFILE\")" || true
-          exit 1
-        elif [ ! -w "$DOCKERFILE" ]; then
-          echo "[DIAG] DOCKERFILE is not writable at $DOCKERFILE" >&2
-          ls -l "$DOCKERFILE" || true
-          exit 1
-        else
-          # Add build envars to DOCKERFILE (pad for missing line endings)
-          {
-            echo ""
-            echo "ENV BUILDER_IMAGE=ghcr.io/${{ steps.vars.outputs.repo_lower }}/${{ steps.vars.outputs.package_lower }}"
-            echo "ENV BUILDER_TAGS=${{ steps.vars.outputs.tags_csv }}"
-          } >> "$DOCKERFILE"
-        fi
-
     - name: Set up Docker Buildx
       if: steps.build.outputs.triggered == 'true'
       uses: docker/setup-buildx-action@v3
@@ -209,6 +181,34 @@ runs:
         cache-from: type=gha
         cache-to: type=gha,mode=max
         build-args: ${{ inputs.build_args }}
+
+    - name: Check attestation permissions
+      id: check_permissions
+      if: steps.build.outputs.triggered == 'true'
+      shell: bash
+      run: |
+        # Get workflow permissions
+        PERMISSIONS=$(curl -s -H "Authorization: Bearer ${{ inputs.token }}" \
+          "https://api.github.com/repos/${{ github.repository }}/actions/workflows/${{ github.workflow }}/permissions")
+        
+        # Check for both id-token:write and attestations:write permissions
+        if echo "$PERMISSIONS" | grep -q '"id-token":[[:space:]]*"write"' && \
+           echo "$PERMISSIONS" | grep -q '"attestations":[[:space:]]*"write"'
+        then
+          echo "Both id-token:write and attestations:write permissions are available"
+          echo "has_permissions=true" >> $GITHUB_OUTPUT
+        else
+          echo "Missing required permissions. Both id-token:write and attestations:write are needed for attestation"
+        fi
+        
+    - name: Attest
+      uses: actions/attest@v2.3.0
+      if: steps.build.outputs.triggered == 'true' && steps.check_permissions.outputs.has_permissions == 'true'
+      with:
+        subject-name: ghcr.io/${{ github.event.repository.name }}/${{ inputs.package }}
+        subject-digest: ${{ steps.build_and_push.outputs.digest }}
+        predicate-type: 'https://in-toto.io/attestation/release/v0.1'
+        predicate: '{"purl":"pkg:oci/${{ github.event.repository.name }}/${{ inputs.package }}"}'
 
     # Action repo needs to be present for cleanup/tests
     - name: Checkout local repo to make sure action.yml is present

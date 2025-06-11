@@ -4,7 +4,7 @@
 [![MIT License](https://img.shields.io/github/license/bcgov/action-builder-ghcr.svg)](/LICENSE)
 [![Lifecycle](https://img.shields.io/badge/Lifecycle-Experimental-339999)](https://github.com/bcgov/repomountie/blob/master/doc/lifecycle-badges.md)
 
-# Conditional Container Builder with Fallback
+# Conditional Container Builder with Fallback and Attestations (SBOMs)
 
 This action builds Docker/Podman containers conditionally using a set of directories.  If any files were changed matching that, then build a container.  If those files were not changed, retag an existing build.
 
@@ -88,112 +88,112 @@ Only GitHub Container Registry (ghcr.io) is supported so far.
 
 Build a single subfolder with a Dockerfile in it.  Deletes old packages, keeping the last 50.  Runs on pull requests (PRs).
 
-Create or modify a GitHub workflow, like below.  E.g. `.github/workflows/pr-open.yml`
-
 ```yaml
-name: Pull Request
-
-on:
-  pull_request:
-
-concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
-
-jobs:
-  builds:
-    permissions:
-      packages: write
-    runs-on: ubuntu-24.04
-    steps:
-      - uses: actions/checkout@v4
-      - name: Builds
-        uses: bcgov/action-builder-ghcr@vX.Y.Z
-        with:
-          package: frontend
-          tag_fallback: test
-          triggers: ('frontend/')
+builds:
+  runs-on: ubuntu-24.04
+  steps:
+    - name: Builds
+      uses: bcgov/action-builder-ghcr@vX.Y.Z
+      with:
+        package: frontend
+        tag_fallback: test
+        triggers: ('frontend/')
 ```
 
 # Example, Single Build with build_context, build_file and multiple tags
 
 Same as previous, but specifying build folder and Dockerfile.
 
-Create or modify a GitHub workflow, like below.  E.g. `.github/workflows/pr-open.yml`
-
 ```yaml
-name: Pull Request
-
-on:
-  pull_request:
-
-concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
-
-jobs:
-  builds:
-    permissions:
-      packages: write
-    runs-on: ubuntu-24.04
-    steps:
-      - uses: actions/checkout@v4
-      - name: Builds
-        uses: bcgov/action-builder-ghcr@vX.Y.Z
-        with:
-          package: frontend
-          build_context: ./
-          build_file: subdir/Dockerfile
-          tags: |
-            ${{ github.event.number }}
-            ${{ github.sha }}
-            latest
-          tag_fallback: test
-          token: ${{ secrets.GITHUB_TOKEN }}
-          triggers: ('frontend/')
+builds:
+  runs-on: ubuntu-24.04
+  steps:
+    - name: Builds
+      uses: bcgov/action-builder-ghcr@vX.Y.Z
+      with:
+        package: frontend
+        build_context: ./
+        build_file: subdir/Dockerfile
+        tags: |
+          ${{ github.event.number }}
+          ${{ github.sha }}
+          latest
+        tag_fallback: test
+        token: ${{ secrets.GITHUB_TOKEN }}
+        triggers: ('frontend/')
 ```
 
 # Example, Matrix Build
 
 Build from multiple subfolders with Dockerfile in them.  This time an outside repository is used.  Runs on pull requests (PRs).
 
-Create or modify a GitHub workflow, like below.  E.g. `.github/workflows/pr-open.yml`
+```yaml
+builds:
+  runs-on: ubuntu-24.04
+  strategy:
+    matrix:
+      package: [backend, frontend]
+      include:
+        - package: backend
+          triggers: ('backend/')
+        - package: frontend
+          triggers: ('frontend/')
+  steps:
+    - uses: actions/checkout@v4
+    - name: Test Builds
+      uses: bcgov/action-builder-ghcr@vX.Y.Z
+      with:
+        package: ${{ matrix.package }}
+        tags: ${{ github.event.number }}
+        tag_fallback: test
+        repository: bcgov/nr-quickstart-typescript
+        token: ${{ secrets.GITHUB_TOKEN }}
+        triggers: ${{ matrix.triggers }}
+
+```
+
+# Permissions
+
+It is good practice to set explicit permissions for jobs and workflows. These are applied to the GITHUB_TOKEN. Please see the [GitHub documentation](https://docs.github.com/en/actions/writing-workflows/choosing-what-your-workflow-does/controlling-permissions-for-github_token) for more information.
+
+The following permissions are used by this action:
 
 ```yaml
-name: Pull Request
+permissions:
+  packages: write      # Required for pushing images
+  id-token: write      # Optional: Required for OIDC token generation
+  attestations: write  # Optional: Required for creating attestations
+```
+
+## Container Attestations
+
+This action supports [container attestations](https://docs.github.com/en/actions/security-guides/security-hardening-with-openid-connect#about-oidc-and-container-signing) using GitHub's OIDC token. Attestations provide cryptographic verification of container images, enhancing supply chain security.
+
+If the `id-token: write` and `attestations: write` permissions are not granted, the action will still build and push images but will skip the attestation step. This allows the action to work in environments both with and without attestation support.
+
+Example workflow with all permissions enabled:
+
+```yaml
+name: Build with Attestations
 
 on:
   pull_request:
 
-concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+permissions:
+  attestations: write
+  id-token: write
+  packages: write
 
 jobs:
-  builds:
-    permissions:
-      packages: write
+  build:
     runs-on: ubuntu-24.04
-    strategy:
-      matrix:
-        package: [backend, frontend]
-        include:
-          - package: backend
-            triggers: ('backend/')
-          - package: frontend
-            triggers: ('frontend/')
     steps:
       - uses: actions/checkout@v4
-      - name: Test Builds
-        uses: bcgov/action-builder-ghcr@vX.Y.Z
+      - uses: bcgov/action-builder-ghcr@vX.Y.Z
         with:
-          package: ${{ matrix.package }}
-          tags: ${{ github.event.number }}
+          package: frontend
           tag_fallback: test
-          repository: bcgov/nr-quickstart-typescript
-          token: ${{ secrets.GITHUB_TOKEN }}
-          triggers: ${{ matrix.triggers }}
-
+          triggers: ('frontend/')
 ```
 
 # Outputs
@@ -227,15 +227,6 @@ Has an image been built?  [true|false]
   run: |
     echo "Trigger result: ${{ steps.trigger.outputs.triggered }}"
   ...
-```
-
-# Permissions
-
-It is good practice to set explicit permissions for jobs and workflows.  These are applied to the GITHUB_TOKEN.  Please see the [GitHub documentation](https://docs.github.com/en/actions/writing-workflows/choosing-what-your-workflow-does/controlling-permissions-for-github_token) for more information.
-
-```yaml
-permissions:
-  packages: write
 ```
 
 # Deprecations
