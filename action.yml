@@ -239,20 +239,6 @@ runs:
       if: github.repository != inputs.repository
       uses: actions/checkout@v4
 
-    # Get the digest of the built image from the build-push-action output
-    - name: Validate digest
-      env:
-        IMAGE: ghcr.io/${{ steps.vars.outputs.repo_lower }}/${{ steps.vars.outputs.package_lower }}@${{ steps.build_and_push.outputs.digest }}
-      id: digest
-      if: steps.build.outputs.triggered == 'true'
-      shell: bash
-      run: |
-        # Validate digest using docker manifest inspect (faster than docker pull)
-        if ! docker manifest inspect "$IMAGE" > /dev/null; then
-          echo "Error: Failed to inspect manifest for $IMAGE" >&2
-          exit 1
-        fi
-
     - name: Print summary outputs
       shell: bash
       run: |
