@@ -231,6 +231,7 @@ runs:
 
     - name: Prompt user to fix permissions
       if: failure()
+      shell: bash
       run: |
         echo "::warning::Attestation skipped due to missing id-token:write and attestations:write permissions. Please update workflow permissions."
 
