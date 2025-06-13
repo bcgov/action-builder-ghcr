@@ -104,7 +104,9 @@ runs:
         
         # If building from root directory Dockerfile (regardless of name), use org/repo format
         if [[ "$build_file" =~ ^\.?/?[^/]+$ ]]; then
-          repo_path="${repo_lower}"
+          # Use provided repository or fallback to current repo
+          target_repo="${inputs.repository:-${{ github.repository }}}"
+          repo_path=$(echo "$target_repo" | tr '[:upper:]' '[:lower:]')
         else
           repo_path="${repo_lower}/${package_lower}"
         fi

@@ -79,7 +79,7 @@ jobs:
           build_file: api/Dockerfile
           keep_versions: 10
           repository: bcgov/nr-fom
-          tags:
+          tags: |
             ${{ github.event.number }}
             ${{ github.event.number }}-multiline
             pr-latest
@@ -98,7 +98,7 @@ jobs:
           build_file: ./Dockerfile  # Results in org/repo format since Dockerfile is in root
           keep_versions: 10
           repository: bcgov/nr-peach
-          tags:
+          tags: |
             ${{ github.event.number }}
             single-package-test
 
