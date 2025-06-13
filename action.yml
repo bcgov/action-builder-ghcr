@@ -100,7 +100,7 @@ runs:
         
         # Set repo_path based on Dockerfile location
         if [[ "$build_file" =~ ^\.?/?[^/]+$ ]]; then
-          repo_path="${{ github.repository }}}"
+          repo_path="${{ github.repository }}"
         else
           repo_path="${{ github.repository }}/${INPUT_PACKAGE}"
         fi
