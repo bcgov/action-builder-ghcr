@@ -66,17 +66,6 @@ outputs:
 runs:
   using: composite
   steps:
-    # Cleanup if inputs.keep_versions provided
-    - name: GHCR Cleanup
-      if: inputs.keep_versions
-      continue-on-error: true # Stop fail if no versions to delete
-      uses: actions/delete-package-versions@v5.0.0
-      with:
-        package-name: "${{ github.event.repository.name }}/${{ inputs.package }}"
-        package-type: "container"
-        min-versions-to-keep: ${{ inputs.keep_versions }}
-        ignore-versions: "${{ inputs.keep_regex }}"
-
     - id: vars
       shell: bash
       env:
@@ -103,8 +92,20 @@ runs:
         repo_lower=$(echo "${{ github.repository }}" | tr '[:upper:]' '[:lower:]')
         # make the package lowercase
         package_lower=$(echo "$INPUT_PACKAGE" | tr '[:upper:]' '[:lower:]')
-        tags=("${tags[@]/#/ghcr.io/${repo_lower}/${package_lower}:}")
+        
+        # If building from root directory Dockerfile (regardless of name), use org/repo format
+        if [[ "$build_file" =~ ^\.?/?[^/]+$ ]]; then
+          repo_path="${repo_lower}"
+        else
+          repo_path="${repo_lower}/${package_lower}"
+        fi
+        
+        # Create tags with the conditional path
+        tags=("${tags[@]/#/ghcr.io/${repo_path}:}")
         tags_csv=$(IFS=, ; echo "${tags[*]}")
+        
+        # Store repo_path for use in other steps
+        echo "repo_path=${repo_path}" >> "$GITHUB_OUTPUT"
 
         # Output all variables at once, and verify they are set
         for v in build_context build_file tags_csv repo_lower package_lower; do
@@ -114,6 +115,17 @@ runs:
           fi
           echo "$v=${!v}" >> "$GITHUB_OUTPUT"
         done
+
+    # Cleanup if inputs.keep_versions provided
+    - name: GHCR Cleanup
+      if: inputs.keep_versions
+      continue-on-error: true # Stop fail if no versions to delete
+      uses: actions/delete-package-versions@v5.0.0
+      with:
+        package-name: "${{ steps.vars.outputs.repo_path }}"
+        package-type: "container"
+        min-versions-to-keep: ${{ inputs.keep_versions }}
+        ignore-versions: "${{ inputs.keep_regex }}"
 
     # Send triggers to diff action
     - id: diff
@@ -125,7 +137,7 @@ runs:
     # Check if a build is required (steps.build.outputs.triggered=true|false)
     - name: Check for builds
       env:
-        URL_FALLBACK: ghcr.io/${{ steps.vars.outputs.repo_lower }}/${{ steps.vars.outputs.package_lower }}:${{ inputs.tag_fallback }}
+        URL_FALLBACK: ghcr.io/${{ steps.vars.outputs.repo_path }}:${{ inputs.tag_fallback }}
       id: build
       shell: bash
       run: |
@@ -151,7 +163,7 @@ runs:
       if: steps.build.outputs.triggered != 'true'
       with:
         registry: ghcr.io
-        repository: ${{ steps.vars.outputs.repo_lower }}/${{ steps.vars.outputs.package_lower }}
+        repository: ${{ steps.vars.outputs.repo_path }}
         target: ${{ inputs.tag_fallback }}
         tags: |
           ${{ inputs.tags }}
@@ -196,7 +208,7 @@ runs:
       shell: bash
       run: |
         # Generate SBOM in both cyclonedx and spdx formats
-        IMAGE="ghcr.io/${{ steps.vars.outputs.repo_lower }}/${{ steps.vars.outputs.package_lower }}@${{ steps.build_and_push.outputs.digest }}"
+        IMAGE="ghcr.io/${{ steps.vars.outputs.repo_path }}@${{ steps.build_and_push.outputs.digest }}"
         
         # Create SBOMs directory
         mkdir -p sboms
@@ -225,7 +237,7 @@ runs:
       if: steps.build.outputs.triggered == 'true'
       uses: actions/attest@v2.3.0
       with:
-        subject-name: ghcr.io/${{ github.event.repository.name }}/${{ inputs.package }}
+        subject-name: ghcr.io/${{ steps.vars.outputs.repo_path }}
         subject-digest: ${{ steps.build_and_push.outputs.digest }}
         predicate-type: 'https://in-toto.io/attestation/release/v0.1'
         predicate: '{"purl":"pkg:oci/${{ github.event.repository.name }}/${{ inputs.package }}"}'
