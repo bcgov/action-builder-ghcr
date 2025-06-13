@@ -84,10 +84,18 @@ runs:
 
         # Normalize and set build_file path
         build_file="${INPUT_BUILD_FILE:-${INPUT_PACKAGE}/Dockerfile}"
-        # Normalize the build_file path:
-        # - Remove leading './' to avoid redundant relative path notation.
-        # - Collapse multiple consecutive slashes into a single slash for consistency.
-        build_file=$(echo "$build_file" | sed 's|^\./||; s|/\+|/|g')
+
+        # Handle path normalization including directory traversal
+        # First ensure the path starts relative to current directory
+        build_file=$(echo "$build_file" | sed 's|^\./||')
+        
+        # Use realpath to resolve any ../ segments and normalize path
+        # --relative-to=. ensures we get a path relative to current directory
+        # --no-symlinks prevents following symlinks for security
+        if ! build_file=$(realpath --relative-to=. --no-symlinks "$build_file" 2>/dev/null); then
+          echo "::error::Invalid build_file path: ${build_file}"
+          exit 1
+        fi
 
         # Set build_context based on build_file location
         if [[ "$build_file" =~ ^[^/]+$ ]]; then
