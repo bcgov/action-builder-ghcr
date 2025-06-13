@@ -101,8 +101,10 @@ runs:
         # Set repo_path based on Dockerfile location
         if [[ "$build_file" =~ ^\.?/?[^/]+$ ]]; then
           repo_path="${{ github.repository }}"
+          echo "::warning::Root Dockerfile detected - using org/repo format (${repo_path}) instead of package name (${INPUT_PACKAGE})"
         else
           repo_path="${{ github.repository }}/${INPUT_PACKAGE}"
+          echo "::warning::Nested Dockerfile detected - using org/repo/package format (${repo_path})"
         fi
         
         # Create tags with the path
