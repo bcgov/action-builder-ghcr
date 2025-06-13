@@ -95,36 +95,27 @@ runs:
           build_context="${INPUT_BUILD_CONTEXT:-$(dirname "$build_file")}"
         fi
 
-        # Process tags into comma-separated list of full image paths (concise version)
-        mapfile -t tags < <(printf '%s\n' "${{ inputs.tags }}" | tr '[:upper:]' '[:lower:]' | tr -d ' ' | grep -v '^$')
-        # make the repository lowercase
-        repo_lower=$(echo "${{ github.repository }}" | tr '[:upper:]' '[:lower:]')
-        # make the package lowercase
-        package_lower=$(echo "$INPUT_PACKAGE" | tr '[:upper:]' '[:lower:]')
+        # Process tags into array and create csv
+        mapfile -t tags < <(printf '%s\n' "${{ inputs.tags }}" | tr -d ' ' | grep -v '^$')
         
-        # If building from root directory Dockerfile (regardless of name), use org/repo format
+        # Set repo_path based on Dockerfile location
         if [[ "$build_file" =~ ^\.?/?[^/]+$ ]]; then
-          # Use provided repository or fallback to current repo
-          target_repo="${inputs.repository:-${{ github.repository }}}"
-          repo_path=$(echo "$target_repo" | tr '[:upper:]' '[:lower:]')
+          repo_path="${inputs.repository:-${{ github.repository }}}"
         else
-          repo_path="${repo_lower}/${package_lower}"
+          repo_path="${{ github.repository }}/${INPUT_PACKAGE}"
         fi
         
-        # Create tags with the conditional path
+        # Create tags with the path
         tags=("${tags[@]/#/ghcr.io/${repo_path}:}")
         tags_csv=$(IFS=, ; echo "${tags[*]}")
-        
-        # Store repo_path for use in other steps
-        echo "repo_path=${repo_path}" >> "$GITHUB_OUTPUT"
 
-        # Output all variables at once, and verify they are set
-        for v in build_context build_file tags_csv repo_lower package_lower; do
+        # Output all variables at once, convert case, and verify they are set
+        for v in build_context build_file tags_csv repo_path; do
           if [ -z "${!v}" ]; then
             echo "Error: $v is not set!" >&2
             exit 1
           fi
-          echo "$v=${!v}" >> "$GITHUB_OUTPUT"
+          echo "$v=$(echo "${!v}" | tr '[:upper:]' '[:lower:]')" >> "$GITHUB_OUTPUT"
         done
 
     # Cleanup if inputs.keep_versions provided
