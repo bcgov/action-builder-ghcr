@@ -96,7 +96,6 @@ jobs:
           package: nr-peach
           build_context: .
           build_file: ./Dockerfile  # Results in org/repo format since Dockerfile is in root
-          keep_versions: 10
           repository: bcgov/nr-peach
           tags: |
             ${{ github.event.number }}

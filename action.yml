@@ -72,7 +72,6 @@ runs:
         INPUT_BUILD_CONTEXT: ${{ inputs.build_context }}
         INPUT_BUILD_FILE: ${{ inputs.build_file }}
         INPUT_PACKAGE: ${{ inputs.package }}
-        INPUT_REPOSITORY: ${{ inputs.repository }}
       run: |
         # Process inputs and set variables
         set -euo pipefail
@@ -101,7 +100,7 @@ runs:
         
         # Set repo_path based on Dockerfile location
         if [[ "$build_file" =~ ^\.?/?[^/]+$ ]]; then
-          repo_path="${INPUT_REPOSITORY:-${{ github.repository }}}"
+          repo_path="${{ github.repository }}}"
         else
           repo_path="${{ github.repository }}/${INPUT_PACKAGE}"
         fi
@@ -110,9 +109,11 @@ runs:
         tags=("${tags[@]/#/ghcr.io/${repo_path}:}")
         tags_csv=$(IFS=, ; echo "${tags[*]}")
 
-        # Output all variables at once, convert case as appropriate, and verify they are set
+        # Docker requires these to be lowercase
         tags_csv=$(echo "$tags_csv" | tr '[:upper:]' '[:lower:]')
         repo_path=$(echo "$repo_path" | tr '[:upper:]' '[:lower:]')
+
+        # Output all variables at once, verifying all are set
         for v in build_context build_file tags_csv repo_path; do
           if [ -z "${!v}" ]; then
             echo "Error: $v is not set!" >&2
