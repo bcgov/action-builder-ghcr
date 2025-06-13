@@ -82,9 +82,18 @@ runs:
           exit 1
         fi
 
-        # Set build context and file with defaults
-        build_context="${INPUT_BUILD_CONTEXT:-$INPUT_PACKAGE}"
-        build_file="${INPUT_BUILD_FILE:-${build_context}/Dockerfile}"
+        # Normalize and set build_file path
+        build_file="${INPUT_BUILD_FILE:-${INPUT_PACKAGE}/Dockerfile}"
+        build_file=$(echo "$build_file" | sed 's|^\./||; s|/\+|/|g')
+
+        # Set build_context based on build_file location
+        if [[ "$build_file" =~ ^[^/]+$ ]]; then
+          # Root Dockerfile - use root context unless overridden
+          build_context="${INPUT_BUILD_CONTEXT:-.}"
+        else
+          # Nested Dockerfile - use its directory unless overridden
+          build_context="${INPUT_BUILD_CONTEXT:-$(dirname "$build_file")}"
+        fi
 
         # Process tags into comma-separated list of full image paths (concise version)
         mapfile -t tags < <(printf '%s\n' "${{ inputs.tags }}" | tr '[:upper:]' '[:lower:]' | tr -d ' ' | grep -v '^$')
