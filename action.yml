@@ -110,13 +110,15 @@ runs:
         tags=("${tags[@]/#/ghcr.io/${repo_path}:}")
         tags_csv=$(IFS=, ; echo "${tags[*]}")
 
-        # Output all variables at once, convert case, and verify they are set
+        # Output all variables at once, convert case as appropriate, and verify they are set
+        tags_csv=$(echo "$tags_csv" | tr '[:upper:]' '[:lower:]')
+        repo_path=$(echo "$repo_path" | tr '[:upper:]' '[:lower:]')
         for v in build_context build_file tags_csv repo_path; do
           if [ -z "${!v}" ]; then
             echo "Error: $v is not set!" >&2
             exit 1
           fi
-          echo "$v=$(echo "${!v}" | tr '[:upper:]' '[:lower:]')" >> "$GITHUB_OUTPUT"
+          echo "$v=$(echo "${!v}")" >> "$GITHUB_OUTPUT"
         done
 
     # Cleanup if inputs.keep_versions provided
