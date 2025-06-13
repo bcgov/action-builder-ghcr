@@ -72,6 +72,7 @@ runs:
         INPUT_BUILD_CONTEXT: ${{ inputs.build_context }}
         INPUT_BUILD_FILE: ${{ inputs.build_file }}
         INPUT_PACKAGE: ${{ inputs.package }}
+        INPUT_REPOSITORY: ${{ inputs.repository }}
       run: |
         # Process inputs and set variables
         set -euo pipefail
@@ -100,7 +101,7 @@ runs:
         
         # Set repo_path based on Dockerfile location
         if [[ "$build_file" =~ ^\.?/?[^/]+$ ]]; then
-          repo_path="${inputs.repository:-${{ github.repository }}}"
+          repo_path="${INPUT_REPOSITORY:-${{ github.repository }}}"
         else
           repo_path="${{ github.repository }}/${INPUT_PACKAGE}"
         fi
