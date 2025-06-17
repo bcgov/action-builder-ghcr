@@ -107,16 +107,17 @@ runs:
         # make the package lowercase
         package_lower="${INPUT_PACKAGE,,}"
         
-        # If package matches repo name, use simpler path
+        # If package matches repo name, use simpler image_path
         if [ "${INPUT_PACKAGE,,}" = "${CONTEXT_REPO_NAME,,}" ]; then
-          tags=("${tags[@]/#/ghcr.io/${repo_lower}:}")
+          image_path="ghcr.io/${repo_lower}"
         else
-          tags=("${tags[@]/#/ghcr.io/${repo_lower}/${package_lower}:}")
+          image_path="ghcr.io/${repo_lower}/${package_lower}"
         fi
+        tags=("${tags[@]/#/${image_path}:}")
         tags_csv=$(IFS=, ; echo "${tags[*]}")
 
         # Output all variables at once, and verify they are set
-        for v in build_context build_file tags_csv repo_lower package_lower; do
+        for v in build_context build_file tags_csv repo_lower package_lower image_path; do
           if [ -z "${!v}" ]; then
             echo "Error: $v is not set!" >&2
             exit 1
@@ -205,7 +206,7 @@ runs:
       shell: bash
       run: |
         # Generate SBOM in both cyclonedx and spdx formats
-        IMAGE="ghcr.io/${{ steps.vars.outputs.repo_lower }}/${{ steps.vars.outputs.package_lower }}@${{ steps.build_and_push.outputs.digest }}"
+        IMAGE="${{ steps.vars.outputs.image_path }}@${{ steps.build_and_push.outputs.digest }}"
         
         # Create SBOMs directory
         mkdir -p sboms
