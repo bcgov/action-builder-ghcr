@@ -79,7 +79,7 @@ jobs:
           build_file: api/Dockerfile
           keep_versions: 10
           repository: bcgov/nr-fom
-          tags:
+          tags: |
             ${{ github.event.number }}
             ${{ github.event.number }}-multiline
             pr-latest
