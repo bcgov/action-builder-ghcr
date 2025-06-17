@@ -93,7 +93,7 @@ jobs:
       - id: single-package
         uses: ./
         with:
-          package: nr-peach
+          package: action-builder-ghcr
           build_context: .
           build_file: ./Dockerfile  # Results in org/repo format since Dockerfile is in root
           repository: bcgov/nr-peach
