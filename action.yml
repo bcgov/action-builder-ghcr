@@ -84,6 +84,7 @@ runs:
         INPUT_BUILD_FILE: ${{ inputs.build_file }}
         INPUT_PACKAGE: ${{ inputs.package }}
         CONTEXT_REPO_NAME: ${{ github.event.repository.name }}
+        CONTEXT_REPO_ORG: ${{ github.repostiroy }}
       run: |
         # Process inputs and set variables
         set -euo pipefail
@@ -108,7 +109,7 @@ runs:
         
         # If package matches repo name, use simpler path
         if [ "${INPUT_PACKAGE,,}" = "${CONTEXT_REPO_NAME,,}" ]; then
-          tags=("${tags[@]/#/ghcr.io/${INPUT_PACKAGE,,}:}")
+          tags=("${tags[@]/#/ghcr.io/${repo_lower}:}")
         else
           tags=("${tags[@]/#/ghcr.io/${repo_lower}/${package_lower}:}")
         fi
