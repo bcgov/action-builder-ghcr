@@ -84,18 +84,35 @@ jobs:
             ${{ github.event.number }}-multiline
             pr-latest
 
-      - if: steps.advanced.outputs.triggered != 'false'
+  # Test single-package repo format (no package in path)
+  single-package:
+    name: Single Package
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - id: single-package
+        uses: ./
+        with:
+          package: nr-peach
+          build_context: .
+          build_file: ./Dockerfile  # Results in org/repo format since Dockerfile is in root
+          repository: bcgov/nr-peach
+          tags: |
+            ${{ github.event.number }}
+            single-package-test
+
+      - if: steps.single-package.outputs.triggered != 'false'
         run: |
           # Verify outputs
-          echo "Outputs: ${{ toJSON(steps.advanced.outputs) }}"
-          if [ -z "${{ steps.advanced.outputs.digest }}" ]|| [ "${{ steps.advanced.outputs.triggered }}" != "true" ]; then
+          echo "Outputs: ${{ toJSON(steps.single-package.outputs) }}"
+          if [ -z "${{ steps.single-package.outputs.digest }}" ] || [ "${{ steps.single-package.outputs.triggered }}" != "true" ]; then
             echo "Error!  Verify outputs."
             exit 1
           fi
 
   results:
     name: PR Results
-    needs: [advanced, build, no-attestation]
+    needs: [advanced, build, no-attestation, single-package]
     if: always()
     runs-on: ubuntu-24.04
     steps:
