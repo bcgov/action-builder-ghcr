@@ -135,7 +135,7 @@ runs:
     # Check if a build is required (steps.build.outputs.triggered=true|false)
     - name: Check for builds
       env:
-        URL_FALLBACK: ghcr.io/${{ steps.vars.outputs.repo_lower }}/${{ steps.vars.outputs.package_lower }}:${{ inputs.tag_fallback }}
+        URL_FALLBACK: ghcr.io/${{ steps.vars.outputs.image_path }}:${{ inputs.tag_fallback }}
       id: build
       shell: bash
       run: |
@@ -161,7 +161,7 @@ runs:
       if: steps.build.outputs.triggered != 'true'
       with:
         registry: ghcr.io
-        repository: ${{ steps.vars.outputs.repo_lower }}/${{ steps.vars.outputs.package_lower }}
+        repository: ${{ steps.vars.outputs.image_path }}
         target: ${{ inputs.tag_fallback }}
         tags: |
           ${{ inputs.tags }}
