@@ -174,11 +174,9 @@ runs:
         cache-to: type=gha,mode=max
         build-args: ${{ inputs.build_args }}
         # Enable build provenance and SBOM generation
+        attests: type=sbom
         provenance: mode=max
         sbom: true
-        attests: |
-          type=provenance,mode=max,builder-id=https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}/attempts/${{ github.run_attempt }}
-          type=sbom
 
     - name: Generate SBOMs
       if: steps.build.outputs.triggered == 'true' && inputs.sbom == 'true'
