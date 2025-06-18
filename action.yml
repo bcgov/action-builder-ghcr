@@ -170,7 +170,7 @@ runs:
         context: ${{ inputs.build_context || inputs.package }}
         file: ${{ inputs.build_file || format('{0}/Dockerfile', inputs.package) }}
         push: true
-        tags: ${{ steps.vars.outputs.tags_csv }}
+        tag: ${{ steps.vars.outputs.tags_csv }}
         cache-from: type=gha
         cache-to: type=gha,mode=max
         build-args: ${{ inputs.build_args }}
