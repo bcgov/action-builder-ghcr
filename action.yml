@@ -164,7 +164,6 @@ runs:
     - name: Build and push ${{ inputs.package }} Docker image
       id: build_and_push
       if: steps.build.outputs.triggered == 'true'
-      continue-on-error: true # Allow attestation to fail without failing the build
       uses: docker/build-push-action@v6
       with:
         context: ${{ inputs.build_context || inputs.package }}
@@ -174,25 +173,9 @@ runs:
         cache-from: type=gha
         cache-to: type=gha,mode=max
         build-args: ${{ inputs.build_args }}
-        # Add provenance attestation
-        provenance: mode=max
+        provenance: mode=max # Add provenance attestation
         attestations: |
           type=provenance,mode=max,builder-id=https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
-
-    - name: Check build result
-      if: always() && steps.build.outputs.triggered == 'true' && steps.build_and_push.outcome == 'failure'
-      shell: bash
-      run: |
-        # Only show warning if build succeeded but attestation failed
-        if grep -q "permission_denied.*attestation" "$GITHUB_STEP_SUMMARY" && ! grep -q "failed to solve" "$GITHUB_STEP_SUMMARY"; then
-          echo "::warning::Docker build attestation failed. Please ensure workflow has these permissions:"
-          echo "::warning::  id-token: write"
-          echo "::warning::  attestations: write"
-        else
-          # Real build failure - exit with error
-          echo "::error::Docker build failed"
-          exit 1
-        fi
 
     - name: Install Syft
       if: steps.build.outputs.triggered == 'true' && inputs.sbom == 'true'
@@ -243,7 +226,7 @@ runs:
       if: steps.attestation.outcome == 'failure'
       shell: bash
       run: |
-        echo "::warning::Attestation skipped due to missing id-token:write and attestations:write permissions. Please update workflow permissions."
+        echo "::warning::GitHub Attestation skipped due to missing id-token:write and attestations:write permissions. Please update workflow permissions."
 
     # Action repo needs to be present for cleanup/tests
     - name: Checkout local repo to make sure action.yml is present
