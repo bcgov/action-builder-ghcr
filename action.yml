@@ -89,8 +89,8 @@ runs:
         fi
         echo "image_path=${image_path}" >> $GITHUB_OUTPUT
 
-        # Create comma-separated list (e.g. ghcr.io/org/repo/package:tag1,ghcr.io/org/repo/package:tag2)
-        tags_csv=$(echo "${{ inputs.tags }}" | sed "s/^/ghcr.io\/${image_path}:/" | tr '[:upper:]' '[:lower:]' | paste -sd)
+        # Comma-separated list (e.g. ghcr.io/org/repo/package:tag1,ghcr.io/org/repo/package:tag2)
+        tags_csv=$(echo "${{ inputs.tags }}" | sed "s|^|ghcr.io/${image_path}:|" | tr '[:upper:]' '[:lower:]' | paste -sd,)
         echo "tags_csv=${tags_csv}" >> $GITHUB_OUTPUT
 
     # Cleanup if inputs.keep_versions provided
