@@ -191,10 +191,6 @@ runs:
         mkdir -p sboms
         syft packages "$IMAGE" -o cyclonedx-json > "sboms/${{ inputs.package }}-cyclonedx.json"
         syft packages "$IMAGE" -o spdx-json > "sboms/${{ inputs.package }}-spdx.json"
-        
-        # Upload SBOMs as artifacts
-        echo "sbom_cyclonedx=sboms/${{ inputs.package }}-cyclonedx.json" >> $GITHUB_OUTPUT
-        echo "sbom_spdx=sboms/${{ inputs.package }}-spdx.json" >> $GITHUB_OUTPUT
 
     - name: Upload SBOMs
       uses: actions/upload-artifact@v4
