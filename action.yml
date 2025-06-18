@@ -68,6 +68,9 @@ runs:
   steps:
     - id: vars
       shell: bash
+      env:
+        INPUT_PACKAGE: ${{ inputs.package }}
+        REPO_NAME: ${{ github.event.repository.name }}
       run: |
         # Process inputs and set variables
         set -euo pipefail
@@ -78,8 +81,8 @@ runs:
           exit 1
         fi
 
-        # If package matches repo name, shorten image_path
-        if [ "${{ toJSON(inputs.package) | downcase }}" = "${{ toJSON(github.event.repository.name) | downcase }}" ]; then
+        # Determine image path based on case-insensitive package name comparison
+        if [ "${INPUT_PACKAGE,,}" = "${REPO_NAME,,}" ]; then
           image_path="${{ github.repository }}"
         else
           image_path="${{ github.repository }}/${{ inputs.package }}"
