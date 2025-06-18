@@ -162,7 +162,7 @@ runs:
         file: ${{ inputs.build_file || format('{0}/Dockerfile', inputs.package) }}
         push: true
         # Comma separated list (e.g. "ghcr.io/org/repo/package:pr123,ghcr.io/org/repo/package:latest")
-        tags: ${{ join( formatList( 'ghcr.io/{0}:{1}', steps.vars.outputs.image_path, split(inputs.tags, '\n')), ',') }}
+        tags: ${{ join( filter( split(inputs.tags, '\n'), tag => tag != '') | map(format('ghcr.io/{0}:{1}', steps.vars.outputs.image_path)) | map(toLowerCase()), ',') }}
         cache-from: type=gha
         cache-to: type=gha,mode=max
         build-args: ${{ inputs.build_args }}
