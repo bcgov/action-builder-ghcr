@@ -177,26 +177,19 @@ runs:
         attestations: |
           type=provenance,mode=max,builder-id=https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
 
-    - name: Install Syft
+    - name: Generate SBOMs
       if: steps.build.outputs.triggered == 'true' && inputs.sbom == 'true'
       shell: bash
       run: |
+        # Generate SBOM in CycloneDX and SPDX formats
+        IMAGE="ghcr.io/${{ steps.vars.outputs.image_path }}@${{ steps.build_and_push.outputs.digest }}"
+
+        # Install Syft
         curl -sSfL https://raw.githubusercontent.com/anchore/syft/main/install.sh | sh -s -- -b /usr/local/bin
 
-    - name: Generate SBOM
-      if: steps.build.outputs.triggered == 'true' && inputs.sbom == 'true'
-      shell: bash
-      run: |
-        # Generate SBOM in both cyclonedx and spdx formats
-        IMAGE="ghcr.io/${{ steps.vars.outputs.image_path }}@${{ steps.build_and_push.outputs.digest }}"
-        
-        # Create SBOMs directory
+        # Generate CycloneDX and SPDX SBOMs
         mkdir -p sboms
-        
-        # Generate CycloneDX SBOM
         syft packages "$IMAGE" -o cyclonedx-json > "sboms/${{ inputs.package }}-cyclonedx.json"
-        
-        # Generate SPDX SBOM
         syft packages "$IMAGE" -o spdx-json > "sboms/${{ inputs.package }}-spdx.json"
         
         # Upload SBOMs as artifacts
