@@ -175,6 +175,7 @@ runs:
         build-args: ${{ inputs.build_args }}
         # Enable build provenance and SBOM generation
         provenance: mode=max
+        sbom: true
         attests: |
           type=provenance,mode=max,builder-id=https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}/attempts/${{ github.run_attempt }}
           type=sbom
