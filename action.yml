@@ -173,9 +173,15 @@ runs:
         cache-from: type=gha
         cache-to: type=gha,mode=max
         build-args: ${{ inputs.build_args }}
-        provenance: mode=max # Add provenance attestation
-        attests: |
-          type=provenance,mode=max,builder-id=https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        # Enable build provenance and SBOM generation
+        provenance: mode=max
+        attestations: |
+          # SLSA provenance with detailed build info
+          type=provenance,mode=max,builder-id=https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}/attempts/${{ github.run_attempt }}
+          # Generate and attach SBOM
+          type=sbom
+          # Record dependency information
+          type=dependency
 
     - name: Generate SBOMs
       if: steps.build.outputs.triggered == 'true' && inputs.sbom == 'true'
