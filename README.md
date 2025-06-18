@@ -223,14 +223,12 @@ Has an image been built?  [true|false]
   ...
 ```
 
-## Image Naming Convention
+# Image Naming Convention
 
-- Single package repos: `ghcr.io/org/repo:tag`
 - Multi package repos: `ghcr.io/org/repo/package:tag`
+- Single package repos: `ghcr.io/org/repo:tag`
 
-The package name determines the image path:
-- If package matches repository name: shortened format
-- If package differs: includes package name in path
+Single package naming is only triggered when package=repository.
 
 # Deprecations
 
