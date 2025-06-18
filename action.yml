@@ -176,11 +176,8 @@ runs:
         # Enable build provenance and SBOM generation
         provenance: mode=max
         attests: |
-          # SLSA provenance with detailed build info
           type=provenance,mode=max,builder-id=https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}/attempts/${{ github.run_attempt }}
-          # Generate and attach SBOM
           type=sbom
-          # Record dependency information
           type=dependency
 
     - name: Generate SBOMs
