@@ -80,9 +80,9 @@ runs:
 
         # If package matches repo name, shorten image_path
         if [ "${{ inputs.package }}" = "${{ github.event.repository.name }}" ]; then
-          image_path="${{ github.repository }}" >> "$GITHUB_OUTPUT"
+          echo image_path="${{ github.repository }}" >> "$GITHUB_OUTPUT"
         else
-          image_path="${{ github.repository }}/${{ inputs.package }}" >> "$GITHUB_OUTPUT"
+          echo image_path="${{ github.repository }}/${{ inputs.package }}" >> "$GITHUB_OUTPUT"
         fi
 
     # Cleanup if inputs.keep_versions provided
