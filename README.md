@@ -223,6 +223,13 @@ Has an image been built?  [true|false]
   ...
 ```
 
+# Image Naming Convention
+
+- Multi package repos: `ghcr.io/org/repo/package:tag`
+- Single package repos: `ghcr.io/org/repo:tag`
+
+Single package naming is only triggered when package=repository.
+
 # Deprecations
 
 > ⚠️ **Deprecated:** The `tag` input has been deprecated in favor of `tags`, a multiline string that can handle multiple values. The `tag` input will be removed in a future release.
