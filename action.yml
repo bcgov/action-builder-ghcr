@@ -90,7 +90,6 @@ runs:
 
         # Process tags and path:tags comma-separated list
         echo "image_path=$image_path" >> "$GITHUB_OUTPUT"
-        echo tags_csv=${{ join( formatList('ghcr.io/{0}:{1}', image_path, split(inputs.tags, '\n')), ',') }} >> "$GITHUB_OUTPUT"
 
     # Cleanup if inputs.keep_versions provided
     - name: GHCR Cleanup
@@ -168,7 +167,7 @@ runs:
         context: ${{ inputs.build_context || inputs.package }}
         file: ${{ inputs.build_file || format('{0}/Dockerfile', inputs.package) }}
         push: true
-        tags: ${{ steps.vars.outputs.tags_csv }}
+        tags: ${{ join( steps.vars.outputs.tags_csv, ',') }}
         cache-from: type=gha
         cache-to: type=gha,mode=max
         build-args: ${{ inputs.build_args }}
