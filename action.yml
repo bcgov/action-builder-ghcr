@@ -178,7 +178,6 @@ runs:
         attests: |
           type=provenance,mode=max,builder-id=https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}/attempts/${{ github.run_attempt }}
           type=sbom
-          type=dependency
 
     - name: Generate SBOMs
       if: steps.build.outputs.triggered == 'true' && inputs.sbom == 'true'
