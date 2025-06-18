@@ -79,7 +79,7 @@ runs:
         fi
 
         # If package matches repo name, shorten image_path
-        if [ "${{ toLowerCase(inputs.package) }}" = "${{ toLowerCase(github.event.repository.name) }}" ]; then
+        if [ "${{ toJSON(inputs.package) | downcase }}" = "${{ toJSON(github.event.repository.name) | downcase }}" ]; then
           image_path="${{ github.repository }}"
         else
           image_path="${{ github.repository }}/${{ inputs.package }}"
