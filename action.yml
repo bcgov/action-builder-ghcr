@@ -69,11 +69,8 @@ runs:
     - id: vars
       shell: bash
       env:
-        INPUT_BUILD_CONTEXT: ${{ inputs.build_context }}
-        INPUT_BUILD_FILE: ${{ inputs.build_file }}
         INPUT_PACKAGE: ${{ inputs.package }}
-        CONTEXT_REPO_NAME: ${{ github.event.repository.name }}
-        CONTEXT_REPO_ORG: ${{ github.repostiroy }}
+        CONTEXT_REPO: ${{ github.event.repository.name }}
       run: |
         # Process inputs and set variables
         set -euo pipefail
@@ -83,36 +80,22 @@ runs:
           echo "Input 'tag' is deprecated. Please use 'tags' instead."
           exit 1
         fi
-
-        # Set build context and file with defaults
-        build_context="${INPUT_BUILD_CONTEXT:-$INPUT_PACKAGE}"
-        build_file="${INPUT_BUILD_FILE:-${build_context}/Dockerfile}"
+        
+        # If package matches repo name, use simpler image_path
+        if [ "${INPUT_PACKAGE,,}" = "${CONTEXT_REPO,,}" ]; then
+          image_path="${{ github.repository }}"
+        else
+          image_path="${{ github.repository }}/${{ inputs.package }}"
+        fi
 
         # Process tags into comma-separated list of full image paths
         mapfile -t tags < <(printf '%s\n' "${{ inputs.tags }}" | tr '[:upper:]' '[:lower:]' | tr -d ' ' | grep -v '^$')
-
-        # Convert repository name to lowercase using parameter expansion
-        repo_lower="${GITHUB_REPOSITORY,,}"
-        # make the package lowercase
-        package_lower="${INPUT_PACKAGE,,}"
-        
-        # If package matches repo name, use simpler image_path
-        if [ "${INPUT_PACKAGE,,}" = "${CONTEXT_REPO_NAME,,}" ]; then
-          image_path="ghcr.io/${repo_lower}"
-        else
-          image_path="ghcr.io/${repo_lower}/${package_lower}"
-        fi
         tags=("${tags[@]/#/${image_path}:}")
         tags_csv=$(IFS=, ; echo "${tags[*]}")
 
         # Output all variables at once, and verify they are set
-        for v in build_context build_file tags_csv repo_lower package_lower image_path; do
-          if [ -z "${!v}" ]; then
-            echo "Error: $v is not set!" >&2
-            exit 1
-          fi
-          echo "$v=${!v}" >> "$GITHUB_OUTPUT"
-        done
+        echo "image_path=${image_path}" >> $GITHUB_OUTPUT
+        echo "tags_csv=${tags_csv}" >> $GITHUB_OUTPUT
 
     # Cleanup if inputs.keep_versions provided
     - name: GHCR Cleanup
