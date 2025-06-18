@@ -90,7 +90,7 @@ runs:
 
         # Process tags into comma-separated list of full image paths
         mapfile -t tags < <(printf '%s\n' "${{ inputs.tags }}" | tr '[:upper:]' '[:lower:]' | tr -d ' ' | grep -v '^$')
-        tags=("${tags[@]/#/${image_path}:}")
+        tags=("${tags[@]/#/ghcr.io/${image_path}:}")
         tags_csv=$(IFS=, ; echo "${tags[*]}")
 
         # Output all variables at once, and verify they are set
