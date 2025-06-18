@@ -87,14 +87,10 @@ runs:
         else
           image_path="${{ github.repository }}/${{ inputs.package }}"
         fi
-
-        # Process tags into comma-separated list of full image paths
-        mapfile -t tags < <(printf '%s\n' "${{ inputs.tags }}" | tr '[:upper:]' '[:lower:]' | tr -d ' ' | grep -v '^$')
-        tags=("${tags[@]/#/ghcr.io/${image_path}:}")
-        tags_csv=$(IFS=, ; echo "${tags[*]}")
-
-        # Output all variables at once, and verify they are set
         echo "image_path=${image_path}" >> $GITHUB_OUTPUT
+
+        # Create comma-separated list (e.g. ghcr.io/org/repo/package:tag1,ghcr.io/org/repo/package:tag2)
+        tags_csv=$(echo "${{ inputs.tags }}" | sed "s/^/ghcr.io\/${image_path}:/" | tr '[:upper:]' '[:lower:]' | paste -sd)
         echo "tags_csv=${tags_csv}" >> $GITHUB_OUTPUT
 
     # Cleanup if inputs.keep_versions provided
