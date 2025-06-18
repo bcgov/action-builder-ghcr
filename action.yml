@@ -78,26 +78,12 @@ runs:
           exit 1
         fi
 
-        # Process tags into comma-separated list of full image paths
-        mapfile -t tags < <(printf '%s\n' "${{ inputs.tags }}" | tr -d ' ' | grep -v '^$')
-        
         # If package matches repo name, shorten image_path
         if [ "${{ toLowerCase(inputs.package) }}" = "${{ toLowerCase(github.event.repository.name) }}" ]; then
-          image_path="${{ github.repository }}"
+          image_path="${{ github.repository }}" >> "$GITHUB_OUTPUT"
         else
-          image_path="${{ github.repository }}/${{ inputs.package }}"
+          image_path="${{ github.repository }}/${{ inputs.package }}" >> "$GITHUB_OUTPUT"
         fi
-        tags=("${tags[@]/#/ghcr.io/${image_path,,}:}")
-        tags_csv=$(IFS=, ; echo "${tags[*]}")
-
-        # Output all variables at once, and verify they are set
-        for v in tags_csv image_path; do
-          if [ -z "${!v}" ]; then
-            echo "Error: $v is not set!" >&2
-            exit 1
-          fi
-          echo "$v=${!v}" >> "$GITHUB_OUTPUT"
-        done
 
     # Cleanup if inputs.keep_versions provided
     - name: GHCR Cleanup
@@ -175,7 +161,9 @@ runs:
         context: ${{ inputs.build_context || inputs.package }}
         file: ${{ inputs.build_file || format('{0}/Dockerfile', inputs.package) }}
         push: true
+        # Comma separated list (e.g. "ghcr.io/org/repo/package:pr123,ghcr.io/org/repo/package:latest")
         tags: ${{ steps.vars.outputs.tags_csv }}
+        tags: ${{ join( formatList( 'ghcr.io/{0}:{1}', steps.vars.outputs.image_path, split(inputs.tags, '\n')), ',') }}
         cache-from: type=gha
         cache-to: type=gha,mode=max
         build-args: ${{ inputs.build_args }}
