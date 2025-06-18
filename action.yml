@@ -174,8 +174,7 @@ runs:
         cache-to: type=gha,mode=max
         build-args: ${{ inputs.build_args }}
         # Enable build provenance and SBOM generation
-        attests: type=sbom
-        provenance: mode=max
+        provenance: true
         sbom: true
 
     - name: Generate SBOMs
