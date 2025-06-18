@@ -79,11 +79,15 @@ runs:
         fi
 
         # If package matches repo name, shorten image_path
-        if [ "${{ inputs.package }}" = "${{ github.event.repository.name }}" ]; then
-          echo image_path="${{ github.repository }}" >> "$GITHUB_OUTPUT"
+        if [ "${{ toLowerCase(inputs.package) }}" = "${{ toLowerCase(github.event.repository.name) }}" ]; then
+          image_path="${{ github.repository }}"
         else
-          echo image_path="${{ github.repository }}/${{ inputs.package }}" >> "$GITHUB_OUTPUT"
+          image_path="${{ github.repository }}/${{ inputs.package }}"
         fi
+
+        # Process tags and path:tags comma-separated list
+        echo "image_path=$image_path" >> "$GITHUB_OUTPUT"
+        echo tags_csv=${{ join( formatList('ghcr.io/{0}:{1}', image_path, split(inputs.tags, '\n')), ',') }} >> "$GITHUB_OUTPUT"
 
     # Cleanup if inputs.keep_versions provided
     - name: GHCR Cleanup
@@ -161,8 +165,7 @@ runs:
         context: ${{ inputs.build_context || inputs.package }}
         file: ${{ inputs.build_file || format('{0}/Dockerfile', inputs.package) }}
         push: true
-        # Comma separated list (e.g. "ghcr.io/org/repo/package:pr123,ghcr.io/org/repo/package:latest")
-        tags: ${{ join( filter( split(inputs.tags, '\n'), tag => tag != '') | map(format('ghcr.io/{0}:{1}', steps.vars.outputs.image_path)) | map(toLowerCase()), ',') }}
+        tags: ${{ steps.vars.outputs.tags_csv }}
         cache-from: type=gha
         cache-to: type=gha,mode=max
         build-args: ${{ inputs.build_args }}
