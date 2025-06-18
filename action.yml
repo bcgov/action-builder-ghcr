@@ -170,7 +170,7 @@ runs:
         context: ${{ inputs.build_context || inputs.package }}
         file: ${{ inputs.build_file || format('{0}/Dockerfile', inputs.package) }}
         push: true
-        tag: ${{ steps.vars.outputs.tags_csv }}
+        tags: ${{ steps.vars.outputs.tags_csv }}
         cache-from: type=gha
         cache-to: type=gha,mode=max
         build-args: ${{ inputs.build_args }}
@@ -228,10 +228,11 @@ runs:
 
     # Action repo needs to be present for cleanup/tests
     - name: Checkout local repo to make sure action.yml is present
-      if: github.repository != inputs.repository
+      if: github.repository != inputs.repository || failure()
       uses: actions/checkout@v4
 
     - name: Print summary outputs
+      if: always() # Always run this step to summarize the build
       shell: bash
       run: |
         echo "---- Build Summary ----"
