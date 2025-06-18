@@ -82,7 +82,7 @@ runs:
         mapfile -t tags < <(printf '%s\n' "${{ inputs.tags }}" | tr -d ' ' | grep -v '^$')
         
         # If package matches repo name, shorten image_path
-        if [ "${{ inputs.package }}" = "${{ github.event.repository.name }}" ]; then
+        if [ "${{ toLowerCase(inputs.package) }}" = "${{ toLowerCase(github.event.repository.name) }}" ]; then
           image_path="${{ github.repository }}"
         else
           image_path="${{ github.repository }}/${{ inputs.package }}"
