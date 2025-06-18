@@ -173,6 +173,10 @@ runs:
         cache-from: type=gha
         cache-to: type=gha,mode=max
         build-args: ${{ inputs.build_args }}
+        # Add provenance attestation
+        provenance: mode=max
+        attestations: |
+          type=provenance,mode=max,builder-id=https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
 
     - name: Install Syft
       if: steps.build.outputs.triggered == 'true' && inputs.sbom == 'true'
