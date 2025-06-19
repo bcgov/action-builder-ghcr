@@ -190,6 +190,53 @@ Two SBOM formats are generated and uploaded as workflow artifacts:
 - CycloneDX JSON
 - SPDX JSON
 
+## Viewing Image Attestations and SBOMs
+
+This action attaches several types of attestations to the container images:
+
+1. **SLSA Provenance**: Build and supply chain information
+2. **SBOM**: Software Bill of Materials
+3. **Dependencies**: Build-time dependency information
+
+View these using the `cosign` tool:
+```bash
+cosign verify-attestation ghcr.io/your-org/your-repo:tag
+```
+# View SBOM attestation
+cosign verify-attestation --type sbom ghcr.io/bcgov/action-builder-ghcr:latest
+
+
+For a detailed view of the SBOM:
+```bash
+cosign download sbom ghcr.io/your-org/your-repo:tag > sbom.json
+syft convert sbom.json -o table
+```
+
+# Verify SLSA provenance
+cosign verify-attestation \
+  --certificate-identity-regexp "https://github.com/login/oauth" \
+  --certificate-oidc-issuer "https://token.actions.githubusercontent.com" \
+  ghcr.io/bcgov/action-builder-ghcr:95
+
+# Verify SBOM
+cosign verify-attestation \
+  --type sbom \
+  --certificate-identity-regexp "https://github.com/login/oauth" \
+  --certificate-oidc-issuer "https://token.actions.githubusercontent.com" \
+  ghcr.io/bcgov/action-builder-ghcr:95
+
+### Prerequisites for Attestations and SBOMs
+
+```
+# Install cosign
+curl -O -L "https://github.com/sigstore/cosign/releases/latest/download/cosign-linux-amd64"
+chmod +x cosign-linux-amd64
+sudo mv cosign-linux-amd64 /usr/local/bin/cosign
+
+# Install syft (optional, for SBOM viewing)
+curl -sSfL https://raw.githubusercontent.com/anchore/syft/main/install.sh | sh -s -- -b /usr/local/bin
+```
+
 # Outputs
 
 | Output     | Description                                 |

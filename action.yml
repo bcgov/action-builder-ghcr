@@ -173,32 +173,24 @@ runs:
         cache-from: type=gha
         cache-to: type=gha,mode=max
         build-args: ${{ inputs.build_args }}
+        # Enable build provenance and SBOM generation
+        provenance: true
+        sbom: true
 
-    - name: Install Syft
+    - name: Generate SBOMs
       if: steps.build.outputs.triggered == 'true' && inputs.sbom == 'true'
       shell: bash
       run: |
+        # Generate SBOM in CycloneDX and SPDX formats
+        IMAGE="ghcr.io/${{ steps.vars.outputs.image_path }}@${{ steps.build_and_push.outputs.digest }}"
+
+        # Install Syft
         curl -sSfL https://raw.githubusercontent.com/anchore/syft/main/install.sh | sh -s -- -b /usr/local/bin
 
-    - name: Generate SBOM
-      if: steps.build.outputs.triggered == 'true' && inputs.sbom == 'true'
-      shell: bash
-      run: |
-        # Generate SBOM in both cyclonedx and spdx formats
-        IMAGE="ghcr.io/${{ steps.vars.outputs.image_path }}@${{ steps.build_and_push.outputs.digest }}"
-        
-        # Create SBOMs directory
+        # Generate CycloneDX and SPDX SBOMs
         mkdir -p sboms
-        
-        # Generate CycloneDX SBOM
         syft packages "$IMAGE" -o cyclonedx-json > "sboms/${{ inputs.package }}-cyclonedx.json"
-        
-        # Generate SPDX SBOM
         syft packages "$IMAGE" -o spdx-json > "sboms/${{ inputs.package }}-spdx.json"
-        
-        # Upload SBOMs as artifacts
-        echo "sbom_cyclonedx=sboms/${{ inputs.package }}-cyclonedx.json" >> $GITHUB_OUTPUT
-        echo "sbom_spdx=sboms/${{ inputs.package }}-spdx.json" >> $GITHUB_OUTPUT
 
     - name: Upload SBOMs
       uses: actions/upload-artifact@v4
@@ -223,7 +215,7 @@ runs:
       if: steps.attestation.outcome == 'failure'
       shell: bash
       run: |
-        echo "::warning::Attestation skipped due to missing id-token:write and attestations:write permissions. Please update workflow permissions."
+        echo "::warning::GitHub Attestation skipped due to missing id-token:write and attestations:write permissions. Please update workflow permissions."
 
     # Action repo needs to be present for cleanup/tests
     - name: Checkout local repo to make sure action.yml is present
