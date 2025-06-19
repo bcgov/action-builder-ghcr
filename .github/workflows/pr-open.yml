@@ -34,6 +34,23 @@ jobs:
             echo "Error!  Verify outputs."
             exit 1
           fi
+      
+      - if: steps.build.outputs.triggered != 'false'
+        env:
+          PACKAGE_TAG: "action-builder-ghcr/backend:${{ github.event.number }}"
+        run: |
+          # Verify SLSA provenance and SBOM
+          cosign verify-attestation \
+            --certificate-identity-regexp "https://github.com/login/oauth" \
+            --certificate-oidc-issuer "https://token.actions.githubusercontent.com" \
+            ghcr.io/bcgov/${PACKAGE_TAG}
+
+          cosign verify-attestation \
+            --type sbom \
+            --certificate-identity-regexp "https://github.com/login/oauth" \
+            --certificate-oidc-issuer "https://token.actions.githubusercontent.com" \
+            ghcr.io/bcgov/${PACKAGE_TAG}
+
 
   # No attestation, no id-token, no build
   no-attestation:
@@ -64,6 +81,22 @@ jobs:
             echo "Error!  Verify outputs."
             exit 1
           fi
+      
+      - if: steps.build.outputs.triggered != 'false'
+        env:
+          PACKAGE_TAG: "action-builder-ghcr/frontend:${{ github.event.number }}"
+        run: |
+          # Verify SLSA provenance and SBOM
+          cosign verify-attestation \
+            --certificate-identity-regexp "https://github.com/login/oauth" \
+            --certificate-oidc-issuer "https://token.actions.githubusercontent.com" \
+            ghcr.io/bcgov/${PACKAGE_TAG}
+
+          cosign verify-attestation \
+            --type sbom \
+            --certificate-identity-regexp "https://github.com/login/oauth" \
+            --certificate-oidc-issuer "https://token.actions.githubusercontent.com" \
+            ghcr.io/bcgov/${PACKAGE_TAG}
 
   # FOM apps build from repo root, above their Dockerfiles (extra params)
   advanced:
@@ -83,6 +116,31 @@ jobs:
             ${{ github.event.number }}
             ${{ github.event.number }}-multiline
             pr-latest
+
+      - if: steps.single-package.outputs.triggered != 'false'
+        run: |
+          # Verify outputs
+          echo "Outputs: ${{ toJSON(steps.advanced.outputs) }}"
+          if [ -z "${{ steps.advanced.outputs.digest }}" ] || [ "${{ steps.advanced.outputs.triggered }}" != "true" ]; then
+            echo "Error!  Verify outputs."
+            exit 1
+          fi
+      
+      - if: steps.build.outputs.triggered != 'false'
+        env:
+          PACKAGE_TAG: "action-builder-ghcr/api:${{ github.event.number }}"
+        run: |
+          # Verify SLSA provenance and SBOM
+          cosign verify-attestation \
+            --certificate-identity-regexp "https://github.com/login/oauth" \
+            --certificate-oidc-issuer "https://token.actions.githubusercontent.com" \
+            ghcr.io/bcgov/${PACKAGE_TAG}
+
+          cosign verify-attestation \
+            --type sbom \
+            --certificate-identity-regexp "https://github.com/login/oauth" \
+            --certificate-oidc-issuer "https://token.actions.githubusercontent.com" \
+            ghcr.io/bcgov/${PACKAGE_TAG}
 
   # Test single-package repo format (no package in path)
   single-package:
@@ -109,6 +167,22 @@ jobs:
             echo "Error!  Verify outputs."
             exit 1
           fi
+      
+      - if: steps.build.outputs.triggered != 'false'
+        env:
+          PACKAGE_TAG: "action-builder-ghcr:${{ github.event.number }}"
+        run: |
+          # Verify SLSA provenance and SBOM
+          cosign verify-attestation \
+            --certificate-identity-regexp "https://github.com/login/oauth" \
+            --certificate-oidc-issuer "https://token.actions.githubusercontent.com" \
+            ghcr.io/bcgov/${PACKAGE_TAG}
+
+          cosign verify-attestation \
+            --type sbom \
+            --certificate-identity-regexp "https://github.com/login/oauth" \
+            --certificate-oidc-issuer "https://token.actions.githubusercontent.com" \
+            ghcr.io/bcgov/${PACKAGE_TAG}
 
   results:
     name: PR Results
