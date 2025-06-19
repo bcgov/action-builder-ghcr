@@ -82,7 +82,7 @@ jobs:
             exit 1
           fi
       
-      - if: steps.build.outputs.triggered != 'false'
+      - if: steps.no-attestation.outputs.triggered != 'false'
         env:
           PACKAGE_TAG: "action-builder-ghcr/frontend:${{ github.event.number }}"
         run: |
@@ -117,7 +117,7 @@ jobs:
             ${{ github.event.number }}-multiline
             pr-latest
 
-      - if: steps.single-package.outputs.triggered != 'false'
+      - if: steps.advanced.outputs.triggered != 'false'
         run: |
           # Verify outputs
           echo "Outputs: ${{ toJSON(steps.advanced.outputs) }}"
@@ -126,7 +126,7 @@ jobs:
             exit 1
           fi
       
-      - if: steps.build.outputs.triggered != 'false'
+      - if: steps.advanced.outputs.triggered != 'false'
         env:
           PACKAGE_TAG: "action-builder-ghcr/api:${{ github.event.number }}"
         run: |
@@ -167,8 +167,8 @@ jobs:
             echo "Error!  Verify outputs."
             exit 1
           fi
-      
-      - if: steps.build.outputs.triggered != 'false'
+
+      - if: steps.single-package.outputs.triggered != 'false'
         env:
           PACKAGE_TAG: "action-builder-ghcr:${{ github.event.number }}"
         run: |
