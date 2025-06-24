@@ -33,6 +33,11 @@ inputs:
         test
   triggers:
     description: Paths used to trigger a build; e.g. ('./backend/' './frontend/)
+  secrets:
+    description: |
+      Multiline input for secrets to mount with Docker BuildKit.
+      Format: id=SECRET_ID,src=path/to/file (one per line).
+    required: false
 
   ### Usually a bad idea / not recommended
   build_args:
@@ -173,6 +178,7 @@ runs:
         cache-from: type=gha
         cache-to: type=gha,mode=max
         build-args: ${{ inputs.build_args }}
+        secrets: ${{ inputs.secrets }}
 
     - name: Install Syft
       if: steps.build.outputs.triggered == 'true' && inputs.sbom == 'true'
