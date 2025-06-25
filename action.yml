@@ -33,11 +33,7 @@ inputs:
         test
   triggers:
     description: Paths used to trigger a build; e.g. ('./backend/' './frontend/)
-  secrets:
-    description: |
-      Multiline input for secrets to mount with Docker BuildKit.
-      Format: id=SECRET_ID,src=path/to/file (one per line).
-    required: false
+
 
   ### Usually a bad idea / not recommended
   build_args:
@@ -58,6 +54,11 @@ inputs:
   token:
     description: Specify token (GH or PAT), instead of inheriting one from the calling workflow
     default: ${{ github.token }}
+  secrets:
+    description: |
+      Multiline input for secrets to mount with Docker BuildKit.
+      https://docs.docker.com/build/ci/github-actions/secrets/#secret-mounts
+    required: false
 
 outputs:
   digest:
