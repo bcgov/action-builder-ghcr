@@ -41,15 +41,15 @@ jobs:
         run: |
           # Verify SLSA provenance and SBOM
 
-          curl -O -L "https://github.com/sigstore/cosign/releases/latest/download/cosign-linux-amd64"
-          chmod +x cosign-linux-amd64
+          curl -L "https://github.com/sigstore/cosign/releases/latest/download/cosign-linux-amd64" -o cosign
+          chmod +x cosign
 
-          ./cosign-linux_amd64 verify-attestation \
+          ./cosign verify-attestation \
             --certificate-identity-regexp "https://github.com/login/oauth" \
             --certificate-oidc-issuer "https://token.actions.githubusercontent.com" \
             ghcr.io/bcgov/${PACKAGE_TAG}
 
-          ./cosign-linux_amd64 verify-attestation \
+          ./cosign verify-attestation \
             --type sbom \
             --certificate-identity-regexp "https://github.com/login/oauth" \
             --certificate-oidc-issuer "https://token.actions.githubusercontent.com" \
@@ -94,12 +94,12 @@ jobs:
           curl -L "https://github.com/sigstore/cosign/releases/latest/download/cosign-linux-amd64" -o cosign
           chmod +x cosign
 
-          ./cosign \
+          ./cosign verify-attestation \
             --certificate-identity-regexp "https://github.com/login/oauth" \
             --certificate-oidc-issuer "https://token.actions.githubusercontent.com" \
             ghcr.io/bcgov/${PACKAGE_TAG}
 
-          ./cosign \
+          ./cosign verify-attestation \
             --type sbom \
             --certificate-identity-regexp "https://github.com/login/oauth" \
             --certificate-oidc-issuer "https://token.actions.githubusercontent.com" \
@@ -139,15 +139,15 @@ jobs:
         run: |
           # Verify SLSA provenance and SBOM
 
-          curl -O -L "https://github.com/sigstore/cosign/releases/latest/download/cosign-linux-amd64"
-          chmod +x cosign-linux-amd64
-          
-          ./cosign-linux_amd64 verify-attestation \
+          curl -L "https://github.com/sigstore/cosign/releases/latest/download/cosign-linux-amd64" -o cosign
+          chmod +x cosign
+
+          ./cosign verify-attestation \
             --certificate-identity-regexp "https://github.com/login/oauth" \
             --certificate-oidc-issuer "https://token.actions.githubusercontent.com" \
             ghcr.io/bcgov/${PACKAGE_TAG}
 
-          ./cosign-linux_amd64 verify-attestation \
+          ./cosign verify-attestation \
             --type sbom \
             --certificate-identity-regexp "https://github.com/login/oauth" \
             --certificate-oidc-issuer "https://token.actions.githubusercontent.com" \
@@ -185,15 +185,15 @@ jobs:
         run: |
           # Verify SLSA provenance and SBOM
 
-          curl -O -L "https://github.com/sigstore/cosign/releases/latest/download/cosign-linux-amd64"
-          chmod +x cosign-linux-amd64
-          
-          ./cosign-linux_amd64 verify-attestation \
+          curl -L "https://github.com/sigstore/cosign/releases/latest/download/cosign-linux-amd64" -o cosign
+          chmod +x cosign
+
+          ./cosign verify-attestation \
             --certificate-identity-regexp "https://github.com/login/oauth" \
             --certificate-oidc-issuer "https://token.actions.githubusercontent.com" \
             ghcr.io/bcgov/${PACKAGE_TAG}
 
-          ./cosign-linux_amd64 verify-attestation \
+          ./cosign verify-attestation \
             --type sbom \
             --certificate-identity-regexp "https://github.com/login/oauth" \
             --certificate-oidc-issuer "https://token.actions.githubusercontent.com" \
