@@ -58,7 +58,9 @@ inputs:
     description: |
       Multiline input for secrets to mount with Docker BuildKit.
       https://docs.docker.com/build/ci/github-actions/secrets/#secret-mounts
-    required: false
+      Example: |
+        MY_SECRET=secret_value
+        ANOTHER_SECRET=another_value
 
 outputs:
   digest:
