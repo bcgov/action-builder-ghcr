@@ -23,7 +23,6 @@ jobs:
         uses: ./
         with:
           package: backend
-          keep_versions: 10
           repository: bcgov/quickstart-openshift
 
       - if: steps.build.outputs.triggered != 'false'
@@ -50,7 +49,6 @@ jobs:
         with:
           package: frontend
           build_context: frontend
-          keep_versions: 10
           repository: bcgov/quickstart-openshift
           tags: ${{ github.event.number }}-no-attestation
           tag_fallback: test
@@ -77,7 +75,6 @@ jobs:
           package: api
           build_context: .
           build_file: api/Dockerfile
-          keep_versions: 10
           repository: bcgov/nr-fom
           tags: |
             ${{ github.event.number }}
