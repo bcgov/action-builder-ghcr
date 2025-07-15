@@ -82,8 +82,8 @@ Only GitHub Container Registry (ghcr.io) is supported so far.
     # Multiline input for secrets to mount.
     # https://docs.docker.com/build/ci/github-actions/secrets/#secret-mounts
     secrets: |
-        MY_SECRET=secret_value
-        ANOTHER_SECRET=another_value
+        MY_SECRET=${{ secrets.MY_SECRET }}
+        ANOTHER_SECRET=${{ secrets.ANOTHER_SECRET }}
 
     ### Deprecated
 
