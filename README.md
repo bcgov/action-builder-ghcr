@@ -79,7 +79,7 @@ Only GitHub Container Registry (ghcr.io) is supported so far.
     # Specify token (GH or PAT), instead of inheriting one from the calling workflow
     token: ${{ secrets.GITHUB_TOKEN }}
 
-    # Multiline input for secrets to mount with Docker BuildKit.
+    # Multiline input for secrets to mount.
     # https://docs.docker.com/build/ci/github-actions/secrets/#secret-mounts
     secrets: |
         MY_SECRET=secret_value

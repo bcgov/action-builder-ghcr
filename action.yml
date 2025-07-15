@@ -56,7 +56,7 @@ inputs:
     default: ${{ github.token }}
   secrets:
     description: |
-      Multiline input for secrets to mount with Docker BuildKit.
+      Multiline input for secrets to mount.
       https://docs.docker.com/build/ci/github-actions/secrets/#secret-mounts
       Example: |
         MY_SECRET=secret_value
