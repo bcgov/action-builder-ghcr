@@ -59,8 +59,8 @@ inputs:
       Multiline input for secrets to mount.
       https://docs.docker.com/build/ci/github-actions/secrets/#secret-mounts
       Example: |
-        MY_SECRET=${{ secrets.MY_SECRET }}
-        ANOTHER_SECRET=${{ secrets.ANOTHER_SECRET }}
+        MY_SECRET=secret_value
+        ANOTHER_SECRET=another_value
 
 outputs:
   digest:
