@@ -34,6 +34,7 @@ inputs:
   triggers:
     description: Paths used to trigger a build; e.g. ('./backend/' './frontend/)
 
+
   ### Usually a bad idea / not recommended
   build_args:
     description: A list of build-time variables, generally not advisable
@@ -53,6 +54,13 @@ inputs:
   token:
     description: Specify token (GH or PAT), instead of inheriting one from the calling workflow
     default: ${{ github.token }}
+  secrets:
+    description: |
+      Multiline input for secrets to mount.
+      https://docs.docker.com/build/ci/github-actions/secrets/#secret-mounts
+      Example: |
+        MY_SECRET=secret_value
+        ANOTHER_SECRET=another_value
 
 outputs:
   digest:
@@ -173,6 +181,7 @@ runs:
         cache-from: type=gha
         cache-to: type=gha,mode=max
         build-args: ${{ inputs.build_args }}
+        secrets: ${{ inputs.secrets }}
 
     - name: Install Syft
       if: steps.build.outputs.triggered == 'true' && inputs.sbom == 'true'
