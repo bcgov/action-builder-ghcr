@@ -153,7 +153,7 @@ runs:
         tags: |
           ${{ inputs.tags }}
 
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v5
       with:
         repository: ${{ inputs.repository }}
 
@@ -237,7 +237,7 @@ runs:
     # Action repo needs to be present for cleanup/tests
     - name: Checkout local repo to make sure action.yml is present
       if: github.repository != inputs.repository || failure()
-      uses: actions/checkout@v4
+      uses: actions/checkout@v5
 
     - name: Print summary outputs
       if: always() # Always run this step to summarize the build
