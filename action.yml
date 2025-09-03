@@ -221,7 +221,7 @@ runs:
       continue-on-error: true
       id: attestation
       if: steps.build.outputs.triggered == 'true'
-      uses: actions/attest@v2.4.0
+      uses: actions/attest@v3.0.0
       with:
         subject-name: ghcr.io/${{ github.event.repository.name }}/${{ inputs.package }}
         subject-digest: ${{ steps.build_and_push.outputs.digest }}
