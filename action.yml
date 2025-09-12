@@ -16,7 +16,7 @@ inputs:
   build_file:
     description: Dockerfile with path, not required for self-contained package/default directory
   sbom:
-    default: 'true'
+    default: "true"
     description: Generate a Software Bill of Materials (SBOM) for the container image. Enabled by default for better security practices.
   keep_versions:
     description: Number of versions to keep; omit to skip
@@ -34,11 +34,10 @@ inputs:
   triggers:
     description: Paths used to trigger a build; e.g. ('./backend/' './frontend/)
 
-
   ### Usually a bad idea / not recommended
   build_args:
     description: A list of build-time variables, generally not advisable
-    value: "BUILDKIT_INLINE_CACHE=1"
+    default: "BUILDKIT_INLINE_CACHE=1"
   diff_branch:
     description: Branch to diff against
     default: ${{ github.event.repository.default_branch }}
@@ -64,7 +63,7 @@ inputs:
 
 outputs:
   digest:
-    description: 'Digest of the built image; e.g. sha256:1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef'
+    description: "Digest of the built image; e.g. sha256:1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef"
     value: ${{ steps.build_and_push.outputs.digest }}
 
   triggered:
@@ -88,7 +87,7 @@ runs:
           echo "Input 'tag' is deprecated. Please use 'tags' instead."
           exit 1
         fi
-        
+
         # If package matches repo name, use simpler image_path
         if [ "${INPUT_PACKAGE,,}" = "${CONTEXT_REPO,,}" ]; then
           image_path="${{ github.repository }}"
@@ -167,7 +166,7 @@ runs:
       with:
         registry: ghcr.io
         username: ${{ github.actor }}
-        password: ${{ inputs.token }} 
+        password: ${{ inputs.token }}
 
     - name: Build and push ${{ inputs.package }} Docker image
       id: build_and_push
@@ -195,16 +194,16 @@ runs:
       run: |
         # Generate SBOM in both cyclonedx and spdx formats
         IMAGE="ghcr.io/${{ steps.vars.outputs.image_path }}@${{ steps.build_and_push.outputs.digest }}"
-        
+
         # Create SBOMs directory
         mkdir -p sboms
-        
+
         # Generate CycloneDX SBOM
         syft packages "$IMAGE" -o cyclonedx-json > "sboms/${{ inputs.package }}-cyclonedx.json"
-        
+
         # Generate SPDX SBOM
         syft packages "$IMAGE" -o spdx-json > "sboms/${{ inputs.package }}-spdx.json"
-        
+
         # Upload SBOMs as artifacts
         echo "sbom_cyclonedx=sboms/${{ inputs.package }}-cyclonedx.json" >> $GITHUB_OUTPUT
         echo "sbom_spdx=sboms/${{ inputs.package }}-spdx.json" >> $GITHUB_OUTPUT
@@ -225,7 +224,7 @@ runs:
       with:
         subject-name: ghcr.io/${{ github.event.repository.name }}/${{ inputs.package }}
         subject-digest: ${{ steps.build_and_push.outputs.digest }}
-        predicate-type: 'https://in-toto.io/attestation/release/v0.1'
+        predicate-type: "https://in-toto.io/attestation/release/v0.1"
         predicate: '{"purl":"pkg:oci/${{ github.event.repository.name }}/${{ inputs.package }}"}'
 
     - name: Prompt user to fix permissions
