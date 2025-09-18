@@ -182,13 +182,17 @@ runs:
         build-args: ${{ inputs.build_args }}
         secrets: ${{ inputs.secrets }}
 
-    - name: Post-build cleanup
+    - name: Comprehensive post-build cleanup
       if: steps.build.outputs.triggered == 'true'
       shell: bash
       run: |
+        echo "Running full disk cleanup..."
         docker system prune -af
         docker volume prune -f
+        docker network prune -f
+        docker builder prune -af
         sudo rm -rf /tmp/*
+        rm -rf ${{ github.workspace }}/node_modules ${{ github.workspace }}/dist
         df -h
 
     - name: Install Syft
