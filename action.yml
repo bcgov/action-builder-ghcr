@@ -200,7 +200,7 @@ runs:
 
         # Generate CycloneDX SBOM
         syft scan "$IMAGE" -o cyclonedx-json > "sboms/${{ inputs.package }}-cyclonedx.json"
-        
+
         # Generate SPDX SBOM
         syft scan "$IMAGE" -o spdx-json > "sboms/${{ inputs.package }}-spdx.json"
 
