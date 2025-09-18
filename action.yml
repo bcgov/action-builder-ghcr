@@ -182,6 +182,15 @@ runs:
         build-args: ${{ inputs.build_args }}
         secrets: ${{ inputs.secrets }}
 
+    - name: Post-build cleanup
+      if: steps.build.outputs.triggered == 'true'
+      shell: bash
+      run: |
+        docker system prune -af
+        docker volume prune -f
+        sudo rm -rf /tmp/*
+        df -h
+
     - name: Install Syft
       if: steps.build.outputs.triggered == 'true' && inputs.sbom == 'true'
       shell: bash
