@@ -199,10 +199,10 @@ runs:
         mkdir -p sboms
 
         # Generate CycloneDX SBOM
-        syft packages "$IMAGE" -o cyclonedx-json > "sboms/${{ inputs.package }}-cyclonedx.json"
+        syft scan "$IMAGE" -o cyclonedx-json > "sboms/${{ inputs.package }}-cyclonedx.json"
 
         # Generate SPDX SBOM
-        syft packages "$IMAGE" -o spdx-json > "sboms/${{ inputs.package }}-spdx.json"
+        syft scan "$IMAGE" -o spdx-json > "sboms/${{ inputs.package }}-spdx.json"
 
         # Upload SBOMs as artifacts
         echo "sbom_cyclonedx=sboms/${{ inputs.package }}-cyclonedx.json" >> $GITHUB_OUTPUT
