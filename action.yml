@@ -156,25 +156,15 @@ runs:
       with:
         repository: ${{ inputs.repository }}
 
-    - name: Verify buildkitd.toml exists
+    - name: Maximize build disk space
       if: steps.build.outputs.triggered == 'true'
-      shell: bash
-      run: |
-        echo "Checking for buildkitd.toml file..."
-        ls -la .github/ || echo "No .github directory found"
-        ls -la .github/buildkitd.toml || echo "buildkitd.toml not found"
-        echo "Current working directory: $(pwd)"
-        echo "GitHub workspace: ${{ github.workspace }}"
+      uses: easimon/maximize-build-space@master
+      with:
+        root-dir: ${{ github.workspace }}
 
-    - name: Set up Docker Buildx with custom data directory
+    - name: Set up Docker Buildx
       if: steps.build.outputs.triggered == 'true'
       uses: docker/setup-buildx-action@v3
-      with:
-        name: builder
-        driver: docker-container
-        buildkitd-config-inline: |
-          [worker.oci]
-            root = "/mnt/docker-data"
 
     - name: Log in to the Container registry
       if: steps.build.outputs.triggered == 'true'
@@ -183,13 +173,6 @@ runs:
         registry: ghcr.io
         username: ${{ github.actor }}
         password: ${{ inputs.token }}
-
-    - name: Check disk usage (before build)
-      if: steps.build.outputs.triggered == 'true'
-      shell: bash
-      run: |
-        echo "=== Disk usage before build ==="
-        df -h
 
     - name: Build and push ${{ inputs.package }} Docker image
       id: build_and_push
@@ -204,13 +187,6 @@ runs:
         cache-to: type=gha,mode=max
         build-args: ${{ inputs.build_args }}
         secrets: ${{ inputs.secrets }}
-
-    - name: Check disk usage (after build)
-      if: steps.build.outputs.triggered == 'true'
-      shell: bash
-      run: |
-        echo "=== Disk usage after build ==="
-        df -h
 
     - name: Install Syft
       if: steps.build.outputs.triggered == 'true' && inputs.sbom == 'true'
