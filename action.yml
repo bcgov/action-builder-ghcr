@@ -158,19 +158,12 @@ runs:
 
     - name: Set up Docker Buildx with /mnt data root
       if: steps.build.outputs.triggered == 'true'
-      shell: bash
-      run: |
-        # Create Docker data directory on /mnt (66GB free vs 16GB on root)
-        sudo mkdir -p /mnt/docker-data
-
-        # Start Docker daemon with /mnt data root
-        sudo dockerd --data-root=/mnt/docker-data --host=unix:///var/run/docker.sock --host=tcp://127.0.0.1:2376 &
-
-        # Wait for Docker to be ready
-        timeout 30 sh -c 'until docker info; do sleep 1; done'
-
-        # Set up buildx
-        docker buildx create --use
+      uses: docker/setup-buildx-action@v3
+      with:
+        driver-opts: |
+          image=moby/buildkit:latest
+          network=host
+          --data-root=/mnt/docker-data
 
     - name: Log in to the Container registry
       if: steps.build.outputs.triggered == 'true'
@@ -201,9 +194,9 @@ runs:
         echo "=== Disk usage after build ==="
         df -h
         echo "=== Docker data usage on /mnt ==="
-        sudo du -sh /mnt/docker-data || echo "No docker data found"
+        du -sh /mnt/docker-data 2>/dev/null || echo "No docker data found"
         echo "=== Cleanup Docker data ==="
-        sudo rm -rf /mnt/docker-data
+        rm -rf /mnt/docker-data
         echo "=== Final disk usage ==="
         df -h
 
