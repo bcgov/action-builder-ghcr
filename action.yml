@@ -198,9 +198,9 @@ runs:
         echo "=== Disk usage after build ==="
         df -h
         echo "=== Docker data usage on /mnt ==="
-        du -sh /mnt/docker-data 2>/dev/null || echo "No docker data found"
+        sudo du -sh /mnt/docker-data 2>/dev/null || echo "No docker data found"
         echo "=== Cleanup Docker data ==="
-        rm -rf /mnt/docker-data
+        sudo rm -rf /mnt/docker-data
         echo "=== Final disk usage ==="
         df -h
 
