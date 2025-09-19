@@ -163,7 +163,7 @@ runs:
         name: builder
         driver: docker-container
         buildkitd-config-inline: |
-          [worker.containerd]
+          [worker.oci]
             root = "/mnt/docker-data"
 
     - name: Log in to the Container registry
