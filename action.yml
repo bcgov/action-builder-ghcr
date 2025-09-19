@@ -188,17 +188,11 @@ runs:
         build-args: ${{ inputs.build_args }}
         secrets: ${{ inputs.secrets }}
 
-    - name: Check disk usage and cleanup
+    - name: Check disk usage
       if: steps.build.outputs.triggered == 'true'
       shell: bash
       run: |
         echo "=== Disk usage after build ==="
-        df -h
-        echo "=== Docker data usage on /mnt ==="
-        sudo du -sh /mnt/docker-data 2>/dev/null || echo "No docker data found"
-        echo "=== Cleanup Docker data ==="
-        sudo rm -rf /mnt/docker-data
-        echo "=== Final disk usage ==="
         df -h
 
     - name: Install Syft
