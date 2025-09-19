@@ -186,20 +186,8 @@ runs:
       if: steps.build.outputs.triggered == 'true'
       shell: bash
       run: |
-        echo "Running disk usage summary..."
-        sudo du -hxd1 / | sort -hr | head -20
-
-        echo "Running full disk cleanup..."
-        docker system prune -af
-        docker volume prune -f
-        docker network prune -f
-        docker builder prune -af
-        sudo rm -rf /tmp/*
-        rm -rf ${{ github.workspace }}/node_modules ${{ github.workspace }}/dist
-        df -h
-
-        echo "Running disk usage summary..."
-        sudo du -hxd1 / | sort -hr | head -20
+        du -hxd1 /usr | sort -hr | head -20
+        du -hxd1 /opt | sort -hr | head -20
 
     - name: Install Syft
       if: steps.build.outputs.triggered == 'true' && inputs.sbom == 'true'
