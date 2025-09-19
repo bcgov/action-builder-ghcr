@@ -200,12 +200,12 @@ runs:
 
         # Generate CycloneDX SBOM
         if ! syft scan "$IMAGE" -o cyclonedx-json > "sboms/${{ inputs.package }}-cyclonedx.json" 2>/dev/null; then
-          echo "::warning::CycloneDX SBOM generation failed (likely disk space issue)"
+          echo "::warning::CycloneDX SBOM generation failed"
         fi
 
         # Generate SPDX SBOM
         if ! syft scan "$IMAGE" -o spdx-json > "sboms/${{ inputs.package }}-spdx.json" 2>/dev/null; then
-          echo "::warning::SPDX SBOM generation failed (likely disk space issue)"
+          echo "::warning::SPDX SBOM generation failed"
         fi
 
         # Upload SBOMs as artifacts
