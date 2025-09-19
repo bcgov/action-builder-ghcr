@@ -158,6 +158,7 @@ runs:
 
     - name: Configure Docker data root
       if: steps.build.outputs.triggered == 'true'
+      shell: bash
       run: |
         sudo mkdir -p /mnt/docker-data
         sudo systemctl stop docker || true
