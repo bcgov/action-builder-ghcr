@@ -158,11 +158,13 @@ runs:
 
     - name: Set up Docker Buildx with custom data directory
       if: steps.build.outputs.triggered == 'true'
-      shell: bash
-      run: |
-        # Create custom builder with data directory on /mnt partition
-        docker buildx create --name builder --driver docker-container --driver-opt root=/mnt/docker-data
-        docker buildx use builder
+      uses: docker/setup-buildx-action@v3
+      with:
+        name: builder
+        driver: docker-container
+        buildkitd-config-inline: |
+          [worker.containerd]
+            root = "/mnt/docker-data"
 
     - name: Log in to the Container registry
       if: steps.build.outputs.triggered == 'true'
