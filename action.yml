@@ -162,7 +162,7 @@ runs:
       with:
         name: builder
         driver: docker-container
-        buildkitd-config: .github/buildkitd.toml
+        buildkitd-config: ${{ github.workspace }}/.github/buildkitd.toml
 
     - name: Log in to the Container registry
       if: steps.build.outputs.triggered == 'true'
