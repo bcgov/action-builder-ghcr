@@ -156,9 +156,21 @@ runs:
       with:
         repository: ${{ inputs.repository }}
 
-    - name: Set up Docker Buildx
+    - name: Set up Docker Buildx with /mnt data root
       if: steps.build.outputs.triggered == 'true'
-      uses: docker/setup-buildx-action@v3
+      shell: bash
+      run: |
+        # Create Docker data directory on /mnt (66GB free vs 16GB on root)
+        sudo mkdir -p /mnt/docker-data
+
+        # Start Docker daemon with /mnt data root
+        sudo dockerd --data-root=/mnt/docker-data --host=unix:///var/run/docker.sock --host=tcp://127.0.0.1:2376 &
+
+        # Wait for Docker to be ready
+        timeout 30 sh -c 'until docker info; do sleep 1; done'
+
+        # Set up buildx
+        docker buildx create --use
 
     - name: Log in to the Container registry
       if: steps.build.outputs.triggered == 'true'
@@ -182,12 +194,18 @@ runs:
         build-args: ${{ inputs.build_args }}
         secrets: ${{ inputs.secrets }}
 
-    - name: Comprehensive post-build cleanup
+    - name: Check disk usage and cleanup
       if: steps.build.outputs.triggered == 'true'
       shell: bash
       run: |
-        du -hxd1 /usr | sort -hr | head -20
-        du -hxd1 /opt | sort -hr | head -20
+        echo "=== Disk usage after build ==="
+        df -h
+        echo "=== Docker data usage on /mnt ==="
+        sudo du -sh /mnt/docker-data || echo "No docker data found"
+        echo "=== Cleanup Docker data ==="
+        sudo rm -rf /mnt/docker-data
+        echo "=== Final disk usage ==="
+        df -h
 
     - name: Install Syft
       if: steps.build.outputs.triggered == 'true' && inputs.sbom == 'true'
