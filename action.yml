@@ -199,10 +199,14 @@ runs:
         mkdir -p sboms
 
         # Generate CycloneDX SBOM
-        syft scan "$IMAGE" -o cyclonedx-json > "sboms/${{ inputs.package }}-cyclonedx.json"
+        if ! syft scan "$IMAGE" -o cyclonedx-json > "sboms/${{ inputs.package }}-cyclonedx.json" 2>/dev/null; then
+          echo "::warning::CycloneDX SBOM generation failed"
+        fi
 
         # Generate SPDX SBOM
-        syft scan "$IMAGE" -o spdx-json > "sboms/${{ inputs.package }}-spdx.json"
+        if ! syft scan "$IMAGE" -o spdx-json > "sboms/${{ inputs.package }}-spdx.json" 2>/dev/null; then
+          echo "::warning::SPDX SBOM generation failed"
+        fi
 
         # Upload SBOMs as artifacts
         echo "sbom_cyclonedx=sboms/${{ inputs.package }}-cyclonedx.json" >> $GITHUB_OUTPUT
