@@ -156,18 +156,13 @@ runs:
       with:
         repository: ${{ inputs.repository }}
 
-    - name: Configure Docker data root
+    - name: Set up Docker Buildx with custom data directory
       if: steps.build.outputs.triggered == 'true'
       shell: bash
       run: |
-        sudo mkdir -p /mnt/docker-data
-        sudo systemctl stop docker || true
-        sudo dockerd --data-root=/mnt/docker-data &
-        sleep 5
-
-    - name: Set up Docker Buildx
-      if: steps.build.outputs.triggered == 'true'
-      uses: docker/setup-buildx-action@v3
+        # Create custom builder with data directory on /mnt partition
+        docker buildx create --name builder --driver docker-container --driver-opt root=/mnt/docker-data
+        docker buildx use builder
 
     - name: Log in to the Container registry
       if: steps.build.outputs.triggered == 'true'
