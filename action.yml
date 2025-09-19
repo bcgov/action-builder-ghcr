@@ -156,14 +156,17 @@ runs:
       with:
         repository: ${{ inputs.repository }}
 
-    - name: Set up Docker Buildx with /mnt data root
+    - name: Configure Docker data root
+      if: steps.build.outputs.triggered == 'true'
+      run: |
+        sudo mkdir -p /mnt/docker-data
+        sudo systemctl stop docker || true
+        sudo dockerd --data-root=/mnt/docker-data &
+        sleep 5
+
+    - name: Set up Docker Buildx
       if: steps.build.outputs.triggered == 'true'
       uses: docker/setup-buildx-action@v3
-      with:
-        driver-opts: |
-          image=moby/buildkit:latest
-          network=host
-          --data-root=/mnt/docker-data
 
     - name: Log in to the Container registry
       if: steps.build.outputs.triggered == 'true'
