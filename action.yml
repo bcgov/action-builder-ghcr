@@ -156,13 +156,25 @@ runs:
       with:
         repository: ${{ inputs.repository }}
 
+    - name: Verify buildkitd.toml exists
+      if: steps.build.outputs.triggered == 'true'
+      shell: bash
+      run: |
+        echo "Checking for buildkitd.toml file..."
+        ls -la .github/ || echo "No .github directory found"
+        ls -la .github/buildkitd.toml || echo "buildkitd.toml not found"
+        echo "Current working directory: $(pwd)"
+        echo "GitHub workspace: ${{ github.workspace }}"
+
     - name: Set up Docker Buildx with custom data directory
       if: steps.build.outputs.triggered == 'true'
       uses: docker/setup-buildx-action@v3
       with:
         name: builder
         driver: docker-container
-        buildkitd-config: ${{ github.workspace }}/.github/buildkitd.toml
+        buildkitd-config-inline: |
+          [worker.oci]
+            root = "/mnt/docker-data"
 
     - name: Log in to the Container registry
       if: steps.build.outputs.triggered == 'true'
