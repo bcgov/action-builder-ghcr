@@ -1,0 +1,5 @@
+# BuildKit daemon configuration
+# Configure BuildKit to use /mnt partition for storage
+
+[worker.oci]
+  root = "/mnt/docker-data"

@@ -162,9 +162,7 @@ runs:
       with:
         name: builder
         driver: docker-container
-        buildkitd-config-inline: |
-          [worker.oci]
-            root = "/mnt/docker-data"
+        buildkitd-config: .github/buildkitd.toml
 
     - name: Log in to the Container registry
       if: steps.build.outputs.triggered == 'true'
