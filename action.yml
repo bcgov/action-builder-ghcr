@@ -101,7 +101,8 @@ runs:
         echo "tags_csv=${tags_csv}" >> $GITHUB_OUTPUT
 
         # Extract first tag for artifact naming (sanitized for artifact name compatibility)
-        first_tag=$(echo "${{ inputs.tags }}" | grep -v '^$' | head -n 1 | tr '[:upper:]' '[:lower:]' | tr -d ' ')
+        # Artifact names can only contain: letters, numbers, hyphens, and underscores
+        first_tag=$(echo "${{ inputs.tags }}" | grep -v '^$' | head -n 1 | tr '[:upper:]' '[:lower:]' | tr -cd '[:alnum:]-_')
         echo "first_tag=${first_tag}" >> $GITHUB_OUTPUT
 
     # Cleanup if inputs.keep_versions provided
