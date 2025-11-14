@@ -96,9 +96,12 @@ runs:
         fi
         echo "image_path=${image_path,,}" >> $GITHUB_OUTPUT
 
-        # Comma-separated list (e.g. ghcr.io/org/repo/package:tag1,ghcr.io/org/repo/package:tag2)
-        tags_csv=$(echo "${{ inputs.tags }}" | grep -v '^$' | sed "s|^|ghcr.io/${image_path}:|" | tr '[:upper:]' '[:lower:]' | paste -sd,)
-        echo "tags_csv=${tags_csv}" >> $GITHUB_OUTPUT
+        # Convert multiline tags to metadata-action format (type=raw,value=tag)
+        # Each line becomes: type=raw,value=<tag>
+        metadata_tags=$(echo "${{ inputs.tags }}" | grep -v '^$' | tr '[:upper:]' '[:lower:]' | sed 's/^/type=raw,value=/')
+        echo "metadata_tags<<EOF" >> $GITHUB_OUTPUT
+        echo "$metadata_tags" >> $GITHUB_OUTPUT
+        echo "EOF" >> $GITHUB_OUTPUT
 
     # Cleanup if inputs.keep_versions provided
     - name: GHCR Cleanup
@@ -168,6 +171,14 @@ runs:
         username: ${{ github.actor }}
         password: ${{ inputs.token }}
 
+    - name: Prepare Container Metadata tags
+      id: meta
+      if: steps.build.outputs.triggered == 'true'
+      uses: docker/metadata-action@902fa8ec7d6ecbf8d84d538b9b233a880e428804 # v5
+      with:
+        images: ghcr.io/${{ steps.vars.outputs.image_path }}
+        tags: ${{ steps.vars.outputs.metadata_tags }}
+
     - name: Build and push ${{ inputs.package }} Docker image
       id: build_and_push
       if: steps.build.outputs.triggered == 'true'
@@ -176,7 +187,9 @@ runs:
         context: ${{ inputs.build_context || inputs.package }}
         file: ${{ inputs.build_file || format('{0}/Dockerfile', inputs.package) }}
         push: true
-        tags: ${{ steps.vars.outputs.tags_csv }}
+        tags: ${{ steps.meta.outputs.tags }}
+        labels: ${{ steps.meta.outputs.labels }}
+        annotations: ${{ steps.meta.outputs.annotations }}
         cache-from: type=gha
         cache-to: type=gha,mode=max
         build-args: ${{ inputs.build_args }}
@@ -249,5 +262,5 @@ runs:
         echo "---- Build Summary ----"
         echo "digest: ${{ steps.build_and_push.outputs.digest }}"
         echo "triggered: ${{ steps.diff.outputs.triggered }}"
-        echo "tags_csv: ${{ steps.vars.outputs.tags_csv }}"
+        echo "tags: ${{ steps.meta.outputs.tags }}"
         echo "-----------------------"
