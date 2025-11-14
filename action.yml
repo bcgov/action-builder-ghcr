@@ -262,5 +262,5 @@ runs:
         echo "---- Build Summary ----"
         echo "digest: ${{ steps.build_and_push.outputs.digest }}"
         echo "triggered: ${{ steps.diff.outputs.triggered }}"
-        echo "tags: ${{ steps.vars.outputs.tags }}"
+        echo "tags: ${{ steps.meta.outputs.tags }}"
         echo "-----------------------"
