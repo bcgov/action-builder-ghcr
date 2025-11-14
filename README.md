@@ -163,7 +163,23 @@ builds:
 
 # Security Features
 
-This action provides two key security features: Container Attestations and Software Bill of Materials (SBOM) generation.
+This action provides three key security features: OCI Image Labels, Container Attestations, and Software Bill of Materials (SBOM) generation.
+
+## OCI Image Labels
+
+This action automatically adds [Open Container Initiative (OCI)](https://opencontainers.org/) standard labels to all built container images. These labels provide standardized metadata about the container artifact and assist with source provenance and attestation.
+
+The following OCI labels are automatically generated and applied:
+- `org.opencontainers.image.url` - Repository URL
+- `org.opencontainers.image.source` - Source code URL
+- `org.opencontainers.image.title` - Image title
+- `org.opencontainers.image.revision` - Git commit SHA
+- `org.opencontainers.image.created` - Build timestamp
+- `org.opencontainers.image.version` - Image version/tag
+- `org.opencontainers.image.description` - Repository description
+- `org.opencontainers.image.licenses` - Repository license
+
+These labels are generated using [docker/metadata-action](https://github.com/docker/metadata-action) and comply with the [OCI Image Spec](https://specs.opencontainers.org/image-spec/annotations/).
 
 ## Container Attestations
 
