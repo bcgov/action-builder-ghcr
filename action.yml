@@ -96,10 +96,6 @@ runs:
         fi
         echo "image_path=${image_path,,}" >> $GITHUB_OUTPUT
 
-        # Comma-separated list (e.g. ghcr.io/org/repo/package:tag1,ghcr.io/org/repo/package:tag2)
-        tags_csv=$(echo "${{ inputs.tags }}" | grep -v '^$' | sed "s|^|ghcr.io/${image_path}:|" | tr '[:upper:]' '[:lower:]' | paste -sd,)
-        echo "tags_csv=${tags_csv}" >> $GITHUB_OUTPUT
-
         # Convert multiline tags to metadata-action format (type=raw,value=tag)
         # Each line becomes: type=raw,value=<tag>
         metadata_tags=$(echo "${{ inputs.tags }}" | grep -v '^$' | tr '[:upper:]' '[:lower:]' | sed 's/^/type=raw,value=/')
@@ -266,5 +262,5 @@ runs:
         echo "---- Build Summary ----"
         echo "digest: ${{ steps.build_and_push.outputs.digest }}"
         echo "triggered: ${{ steps.diff.outputs.triggered }}"
-        echo "tags_csv: ${{ steps.vars.outputs.tags_csv }}"
+        echo "tags: ${{ steps.vars.outputs.tags }}"
         echo "-----------------------"
