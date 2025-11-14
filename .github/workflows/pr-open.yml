@@ -50,7 +50,7 @@ jobs:
           package: frontend
           build_context: frontend
           repository: bcgov/quickstart-openshift
-          tags: ${{ github.event.number }}-no-attestation
+          tags: pr-${{ github.event.number }}-no-attestation
           tag_fallback: test
           triggers: ('frontend/')
 
@@ -77,8 +77,8 @@ jobs:
           build_file: api/Dockerfile
           repository: bcgov/nr-fom
           tags: |
-            ${{ github.event.number }}
-            ${{ github.event.number }}-multiline
+            pr-${{ github.event.number }}
+            pr-${{ github.event.number }}-multiline
             pr-latest
 
   # Test single-package repo format (no package in path)
@@ -95,7 +95,7 @@ jobs:
           build_file: ./Dockerfile  # Results in org/repo format since Dockerfile is in root
           repository: bcgov/nr-peach
           tags: |
-            ${{ github.event.number }}
+            pr-${{ github.event.number }}
             single-package-test
 
       - if: steps.single-package.outputs.triggered != 'false'
