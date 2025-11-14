@@ -23,12 +23,12 @@ inputs:
   tag_fallback:
     description: Where to pull default images from; e.g. prod, test
   tags:
-    default: ${{ github.event.number }}
+    default: pr-${{ github.event.number }}
     description: |
       Default tag(s); e.g. pr#, test, prod.
       Supports multiline input for multiple tags.
       Example: |
-        pr123
+        pr-123
         demo
         test
   triggers:

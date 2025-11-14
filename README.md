@@ -45,10 +45,10 @@ Only GitHub Container Registry (ghcr.io) is supported so far.
     tag_fallback: test
 
     # Tags to apply to the image
-    # Optional, defaults to pull request number
+    # Optional, defaults to pull request number with "pr-" prefix (e.g., pr-123)
     # Note: All tags are normalized to lowercase and stripped of spaces before use.
     tags: |
-      pr123
+      pr-123
       demo
 
     # Bash array to diff for build triggering
@@ -124,7 +124,7 @@ builds:
         build_context: ./
         build_file: subdir/Dockerfile
         tags: |
-          ${{ github.event.number }}
+          pr-${{ github.event.number }}
           ${{ github.sha }}
           latest
         tag_fallback: test
@@ -153,7 +153,7 @@ builds:
       uses: bcgov/action-builder-ghcr@vX.Y.Z
       with:
         package: ${{ matrix.package }}
-        tags: ${{ github.event.number }}
+        tags: pr-${{ github.event.number }}
         tag_fallback: test
         repository: bcgov/nr-quickstart-typescript
         token: ${{ secrets.GITHUB_TOKEN }}
