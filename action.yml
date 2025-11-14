@@ -60,6 +60,25 @@ inputs:
       Example: |
         MY_SECRET=secret_value
         ANOTHER_SECRET=another_value
+  metadata_tags:
+    default: "false"
+    description: |
+      Enable automatic tag and label generation using docker/metadata-action.
+      When enabled, generates tags based on branch names, semver tags, SHAs, and PR numbers.
+      String value, not boolean. Set to 'true' to enable.
+  metadata_flavor:
+    description: |
+      Flavor configuration for metadata-action (e.g., 'latest=true').
+      Only used when metadata_tags is enabled.
+      See: https://github.com/docker/metadata-action#flavor-input
+  metadata_tag_rules:
+    description: |
+      Custom tag rules for metadata-action.
+      Only used when metadata_tags is enabled.
+      Example: |
+        type=ref,event=branch
+        type=semver,pattern={{version}}
+      See: https://github.com/docker/metadata-action#tags-input
 
 outputs:
   digest:
@@ -69,6 +88,10 @@ outputs:
   triggered:
     description: Did a deployment trigger?  [true|false]
     value: ${{ steps.diff.outputs.triggered }}
+
+  labels:
+    description: "Generated OCI labels from metadata-action (only when metadata_tags is enabled)"
+    value: ${{ steps.meta.outputs.labels }}
 
 runs:
   using: composite
@@ -95,6 +118,7 @@ runs:
           image_path="${{ github.repository }}/${{ inputs.package }}"
         fi
         echo "image_path=${image_path,,}" >> $GITHUB_OUTPUT
+        echo "image_name=ghcr.io/${image_path,,}" >> $GITHUB_OUTPUT
 
         # Comma-separated list (e.g. ghcr.io/org/repo/package:tag1,ghcr.io/org/repo/package:tag2)
         tags_csv=$(echo "${{ inputs.tags }}" | grep -v '^$' | sed "s|^|ghcr.io/${image_path}:|" | tr '[:upper:]' '[:lower:]' | paste -sd,)
@@ -168,6 +192,41 @@ runs:
         username: ${{ github.actor }}
         password: ${{ inputs.token }}
 
+    - name: Prepare Container Metadata tags
+      id: meta
+      if: steps.build.outputs.triggered == 'true' && inputs.metadata_tags == 'true'
+      uses: docker/metadata-action@902fa8ec7d6ecbf8d84d538b9b233a880e428804 # v5
+      with:
+        images: ${{ steps.vars.outputs.image_name }}
+        flavor: ${{ inputs.metadata_flavor }}
+        tags: ${{ inputs.metadata_tag_rules }}
+
+    - name: Merge tags
+      id: tags
+      if: steps.build.outputs.triggered == 'true'
+      shell: bash
+      run: |
+        # Merge metadata tags with custom tags
+        set -euo pipefail
+        
+        # Start with custom tags
+        final_tags="${{ steps.vars.outputs.tags_csv }}"
+        
+        # If metadata tags are enabled, merge them
+        if [ "${{ inputs.metadata_tags }}" == "true" ] && [ -n "${{ steps.meta.outputs.tags }}" ]; then
+          # Convert metadata tags from newline-separated to comma-separated
+          meta_tags=$(echo "${{ steps.meta.outputs.tags }}" | tr '\n' ',' | sed 's/,$//')
+          
+          # Combine tags
+          if [ -n "${final_tags}" ]; then
+            final_tags="${final_tags},${meta_tags}"
+          else
+            final_tags="${meta_tags}"
+          fi
+        fi
+        
+        echo "final_tags=${final_tags}" >> $GITHUB_OUTPUT
+
     - name: Build and push ${{ inputs.package }} Docker image
       id: build_and_push
       if: steps.build.outputs.triggered == 'true'
@@ -176,7 +235,8 @@ runs:
         context: ${{ inputs.build_context || inputs.package }}
         file: ${{ inputs.build_file || format('{0}/Dockerfile', inputs.package) }}
         push: true
-        tags: ${{ steps.vars.outputs.tags_csv }}
+        tags: ${{ steps.tags.outputs.final_tags }}
+        labels: ${{ steps.meta.outputs.labels }}
         cache-from: type=gha
         cache-to: type=gha,mode=max
         build-args: ${{ inputs.build_args }}
@@ -250,4 +310,9 @@ runs:
         echo "digest: ${{ steps.build_and_push.outputs.digest }}"
         echo "triggered: ${{ steps.diff.outputs.triggered }}"
         echo "tags_csv: ${{ steps.vars.outputs.tags_csv }}"
+        echo "final_tags: ${{ steps.tags.outputs.final_tags }}"
+        echo "metadata_enabled: ${{ inputs.metadata_tags }}"
+        if [ "${{ inputs.metadata_tags }}" == "true" ]; then
+          echo "metadata_labels: ${{ steps.meta.outputs.labels }}"
+        fi
         echo "-----------------------"
