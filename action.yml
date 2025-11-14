@@ -168,6 +168,14 @@ runs:
         username: ${{ github.actor }}
         password: ${{ inputs.token }}
 
+    - name: Extract metadata (tags, labels) for Docker
+      id: meta
+      if: steps.build.outputs.triggered == 'true'
+      uses: docker/metadata-action@v5
+      with:
+        images: ghcr.io/${{ steps.vars.outputs.image_path }}
+        tags: ${{ inputs.tags }}
+
     - name: Build and push ${{ inputs.package }} Docker image
       id: build_and_push
       if: steps.build.outputs.triggered == 'true'
@@ -177,6 +185,7 @@ runs:
         file: ${{ inputs.build_file || format('{0}/Dockerfile', inputs.package) }}
         push: true
         tags: ${{ steps.vars.outputs.tags_csv }}
+        labels: ${{ steps.meta.outputs.labels }}
         cache-from: type=gha
         cache-to: type=gha,mode=max
         build-args: ${{ inputs.build_args }}
