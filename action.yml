@@ -100,6 +100,10 @@ runs:
         tags_csv=$(echo "${{ inputs.tags }}" | grep -v '^$' | sed "s|^|ghcr.io/${image_path}:|" | tr '[:upper:]' '[:lower:]' | paste -sd,)
         echo "tags_csv=${tags_csv}" >> $GITHUB_OUTPUT
 
+        # Extract first tag for artifact naming (sanitized for artifact name compatibility)
+        first_tag=$(echo "${{ inputs.tags }}" | grep -v '^$' | head -n 1 | tr '[:upper:]' '[:lower:]' | tr -d ' ')
+        echo "first_tag=${first_tag}" >> $GITHUB_OUTPUT
+
     # Cleanup if inputs.keep_versions provided
     - name: GHCR Cleanup
       if: inputs.keep_versions
@@ -216,7 +220,7 @@ runs:
       uses: actions/upload-artifact@v5
       if: steps.build.outputs.triggered == 'true' && inputs.sbom == 'true'
       with:
-        name: sboms-${{ inputs.package }}
+        name: sboms-${{ inputs.package }}-${{ steps.vars.outputs.first_tag }}
         path: sboms/
         if-no-files-found: error
 
