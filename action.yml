@@ -103,6 +103,13 @@ runs:
         echo "$metadata_tags" >> $GITHUB_OUTPUT
         echo "EOF" >> $GITHUB_OUTPUT
 
+        # Extract first tag for artifact naming (sanitized for artifact name compatibility)
+        # Artifact names can contain: letters, numbers, hyphens, underscores, and periods
+        first_tag=$(echo "${{ inputs.tags }}" | grep -v '^$' | head -n 1 | tr '[:upper:]' '[:lower:]' | tr -cd '[:alnum:]._-')
+        # Fallback to 'artifact' if sanitized tag is empty
+        first_tag="${first_tag:-artifact}"
+        echo "first_tag=${first_tag}" >> $GITHUB_OUTPUT
+
     # Cleanup if inputs.keep_versions provided
     - name: GHCR Cleanup
       if: inputs.keep_versions
@@ -229,7 +236,7 @@ runs:
       uses: actions/upload-artifact@v5
       if: steps.build.outputs.triggered == 'true' && inputs.sbom == 'true'
       with:
-        name: sboms-${{ inputs.package }}
+        name: sboms-${{ inputs.package }}-${{ steps.vars.outputs.first_tag }}
         path: sboms/
         if-no-files-found: error
 
