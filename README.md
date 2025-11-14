@@ -163,7 +163,17 @@ builds:
 
 # Security Features
 
-This action provides two key security features: Container Attestations and Software Bill of Materials (SBOM) generation.
+This action provides two key security features: Container Attestations and Software Bill of Materials (SBOM) generation. Additionally, it leverages the `docker/metadata-action` for best-practice container image tagging and labeling.
+
+## Container Metadata and Labeling
+
+This action uses the [`docker/metadata-action`](https://github.com/docker/metadata-action) to automatically generate OCI-compliant labels and annotations for container images. This ensures that images are tagged and labeled following Docker and OCI best practices.
+
+The metadata-action automatically adds labels including:
+- Image creation timestamp
+- Source repository information
+- Git commit SHA and references
+- OCI standard labels for better container metadata management
 
 ## Container Attestations
 
