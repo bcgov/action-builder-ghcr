@@ -101,8 +101,8 @@ runs:
         echo "tags_csv=${tags_csv}" >> $GITHUB_OUTPUT
 
         # Extract first tag for artifact naming (sanitized for artifact name compatibility)
-        # Artifact names can only contain: letters, numbers, hyphens, and underscores
-        first_tag=$(echo "${{ inputs.tags }}" | grep -v '^$' | head -n 1 | tr '[:upper:]' '[:lower:]' | tr -cd '[:alnum:]-_')
+        # Artifact names can contain: letters, numbers, hyphens, underscores, and periods
+        first_tag=$(echo "${{ inputs.tags }}" | grep -v '^$' | head -n 1 | tr '[:upper:]' '[:lower:]' | tr -cd '[:alnum:]._-')
         # Fallback to 'artifact' if sanitized tag is empty
         first_tag="${first_tag:-artifact}"
         echo "first_tag=${first_tag}" >> $GITHUB_OUTPUT
