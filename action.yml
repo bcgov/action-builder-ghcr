@@ -209,11 +209,12 @@ runs:
         curl -sSfL https://raw.githubusercontent.com/anchore/syft/main/install.sh | sh -s -- -b /usr/local/bin
 
     - name: Generate SBOM
+      id: sbom
       if: steps.build.outputs.triggered == 'true' && inputs.sbom == 'true'
       continue-on-error: true
       shell: bash
       run: |
-        set -uo pipefail  # Don't exit on error, we handle them explicitly
+        set -uo  # Don't exit on error, we handle them explicitly
 
         # Generate SBOM in both cyclonedx and spdx formats
         IMAGE="ghcr.io/${{ steps.vars.outputs.image_path }}@${{ steps.build_and_push.outputs.digest }}"
@@ -230,36 +231,38 @@ runs:
         # Check if we can access the image (permissions check)
         if ! docker manifest inspect "$IMAGE" >/dev/null 2>&1; then
           PERMISSION_ERROR=true
-          echo "::warning::Cannot access image $IMAGE. This may be due to insufficient permissions (id-token:write and attestations:write may be required). SBOM generation will be skipped."
+          echo "::warning::Cannot access image $IMAGE. This may be due to insufficient registry permissions or the image not being available yet. SBOM generation will be skipped."
         else
           # Generate CycloneDX SBOM
           CYCLONEDX_FILE="sboms/${PACKAGE_SANITIZED}-cyclonedx.json"
-          if syft scan "$IMAGE" -o cyclonedx-json > "$CYCLONEDX_FILE" 2>&1; then
+          SYFT_OUTPUT=$(syft scan "$IMAGE" -o cyclonedx-json 2>&1)
+          if [ $? -eq 0 ]; then
+            echo "$SYFT_OUTPUT" > "$CYCLONEDX_FILE"
             echo "✓ CycloneDX SBOM generated successfully"
           else
             SBOM_ERROR=true
-            SYFT_ERROR=$(syft scan "$IMAGE" -o cyclonedx-json 2>&1 || true)
-            if echo "$SYFT_ERROR" | grep -qi "permission\|unauthorized\|access denied\|forbidden"; then
+            if echo "$SYFT_OUTPUT" | grep -qi "permission\|unauthorized\|access denied\|forbidden"; then
               PERMISSION_ERROR=true
-              echo "::warning::CycloneDX SBOM generation failed due to insufficient permissions. Please ensure your workflow has id-token:write and attestations:write permissions."
+              echo "::warning::CycloneDX SBOM generation failed due to image access issues: $SYFT_OUTPUT"
             else
-              echo "::warning::CycloneDX SBOM generation failed: $SYFT_ERROR"
+              echo "::warning::CycloneDX SBOM generation failed: $SYFT_OUTPUT"
             fi
             rm -f "$CYCLONEDX_FILE"
           fi
           
           # Generate SPDX SBOM
           SPDX_FILE="sboms/${PACKAGE_SANITIZED}-spdx.json"
-          if syft scan "$IMAGE" -o spdx-json > "$SPDX_FILE" 2>&1; then
+          SYFT_OUTPUT=$(syft scan "$IMAGE" -o spdx-json 2>&1)
+          if [ $? -eq 0 ]; then
+            echo "$SYFT_OUTPUT" > "$SPDX_FILE"
             echo "✓ SPDX SBOM generated successfully"
           else
             SBOM_ERROR=true
-            SYFT_ERROR=$(syft scan "$IMAGE" -o spdx-json 2>&1 || true)
-            if echo "$SYFT_ERROR" | grep -qi "permission\|unauthorized\|access denied\|forbidden"; then
+            if echo "$SYFT_OUTPUT" | grep -qi "permission\|unauthorized\|access denied\|forbidden"; then
               PERMISSION_ERROR=true
-              echo "::warning::SPDX SBOM generation failed due to insufficient permissions. Please ensure your workflow has id-token:write and attestations:write permissions."
+              echo "::warning::SPDX SBOM generation failed due to image access issues: $SYFT_OUTPUT"
             else
-              echo "::warning::SPDX SBOM generation failed: $SYFT_ERROR"
+              echo "::warning::SPDX SBOM generation failed: $SYFT_OUTPUT"
             fi
             rm -f "$SPDX_FILE"
           fi
@@ -279,7 +282,7 @@ runs:
         else
           echo "sbom_files_exist=false" >> $GITHUB_OUTPUT
           if [ "$PERMISSION_ERROR" = "true" ]; then
-            echo "::warning::SBOM generation skipped due to insufficient permissions. Workflow will continue without SBOM artifacts."
+            echo "::warning::SBOM generation skipped due to image access issues. Workflow will continue without SBOM artifacts."
           else
             echo "::warning::No SBOM files were generated. Workflow will continue without SBOM artifacts."
           fi
