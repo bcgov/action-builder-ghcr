@@ -216,7 +216,7 @@ runs:
       shell: bash
       run: |
         # Generate SBOMs
-        set -uo  # Don't exit on error, we handle them explicitly
+        set +e -u  # Disable exit-on-error (we handle errors explicitly), but exit on unset variables
 
         # Generate SBOM in both cyclonedx and spdx formats
         IMAGE="ghcr.io/${{ steps.vars.outputs.image_path }}@${{ steps.build_and_push.outputs.digest }}"
@@ -233,25 +233,26 @@ runs:
         IMAGE_NOT_FOUND=false
 
         # Check if we can access the image (permissions check)
-        MANIFEST_ERROR=$(docker manifest inspect "$IMAGE" 2>&1)
+        MANIFEST_OUTPUT=$(docker manifest inspect "$IMAGE" 2>&1)
         MANIFEST_EXIT=$?
         if [ $MANIFEST_EXIT -ne 0 ]; then
-          if echo "$MANIFEST_ERROR" | grep -qiE "unauthorized|authentication|permission|forbidden|denied"; then
+          if echo "$MANIFEST_OUTPUT" | grep -qiE "unauthorized|authentication|permission|forbidden|denied"; then
             REGISTRY_AUTH_ERROR=true
             PERMISSION_ERROR=true
             echo "::warning::Cannot access image $IMAGE due to registry authentication issues. Ensure your workflow has 'packages: read' permission and proper registry credentials. SBOM generation will be skipped."
-          elif echo "$MANIFEST_ERROR" | grep -qiE "manifest unknown|not found|does not exist"; then
+          elif echo "$MANIFEST_OUTPUT" | grep -qiE "manifest unknown|not found|does not exist"; then
             IMAGE_NOT_FOUND=true
             echo "::warning::Image $IMAGE not found. This may be a timing issue if the image was just pushed. SBOM generation will be skipped."
           else
             PERMISSION_ERROR=true
-            echo "::warning::Cannot access image $IMAGE. Error: $MANIFEST_ERROR. SBOM generation will be skipped."
+            echo "::warning::Cannot access image $IMAGE. Error: $MANIFEST_OUTPUT. SBOM generation will be skipped."
           fi
         else
           # Generate CycloneDX SBOM
           CYCLONEDX_FILE="sboms/${PACKAGE_SANITIZED}-cyclonedx.json"
           SYFT_OUTPUT=$(syft scan "$IMAGE" -o cyclonedx-json 2>&1)
-          if [ $? -eq 0 ]; then
+          SYFT_EXIT=$?
+          if [ $SYFT_EXIT -eq 0 ]; then
             echo "$SYFT_OUTPUT" > "$CYCLONEDX_FILE"
             echo "✓ CycloneDX SBOM generated successfully"
           else
@@ -274,7 +275,8 @@ runs:
           # Generate SPDX SBOM
           SPDX_FILE="sboms/${PACKAGE_SANITIZED}-spdx.json"
           SYFT_OUTPUT=$(syft scan "$IMAGE" -o spdx-json 2>&1)
-          if [ $? -eq 0 ]; then
+          SYFT_EXIT=$?
+          if [ $SYFT_EXIT -eq 0 ]; then
             echo "$SYFT_OUTPUT" > "$SPDX_FILE"
             echo "✓ SPDX SBOM generated successfully"
           else
