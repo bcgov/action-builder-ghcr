@@ -276,7 +276,7 @@ runs:
 
         # Verify SBOM files exist (only if SBOM was enabled)
         if [ "${{ inputs.sbom }}" = "true" ]; then
-          if [ -f "sboms/${{ steps.sbom.outputs.package_sanitized }}-cyclonedx.json" ] && [ -f "sboms/${{ steps.sbom.outputs.package_sanitized }}-spdx.json" ]; then
+          if [ "${{ steps.sbom.outputs.sbom_files_exist }}" = "true" ]; then
             echo "✓ SBOM files generated successfully"
             echo "  - CycloneDX: sboms/${{ steps.sbom.outputs.package_sanitized }}-cyclonedx.json"
             echo "  - SPDX: sboms/${{ steps.sbom.outputs.package_sanitized }}-spdx.json"
