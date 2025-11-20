@@ -239,15 +239,26 @@ runs:
           if echo "$MANIFEST_OUTPUT" | grep -qiE "unauthorized|authentication|permission|forbidden|denied"; then
             REGISTRY_AUTH_ERROR=true
             PERMISSION_ERROR=true
+            # Truncate error message if too long
+            ERROR_MSG=$(echo "$MANIFEST_OUTPUT" | head -c 500)
             echo "::warning::Cannot access image $IMAGE due to registry authentication issues. Ensure your workflow has 'packages: read' permission and proper registry credentials. SBOM generation will be skipped."
+            echo "::warning::Error details: ${ERROR_MSG}"
           elif echo "$MANIFEST_OUTPUT" | grep -qiE "manifest unknown|not found|does not exist"; then
             IMAGE_NOT_FOUND=true
+            # Truncate error message if too long
+            ERROR_MSG=$(echo "$MANIFEST_OUTPUT" | head -c 500)
             echo "::warning::Image $IMAGE not found. This may be a timing issue if the image was just pushed. SBOM generation will be skipped."
+            echo "::warning::Error details: ${ERROR_MSG}"
           else
             PERMISSION_ERROR=true
-            echo "::warning::Cannot access image $IMAGE. Error: $MANIFEST_OUTPUT. SBOM generation will be skipped."
+            # Truncate error message if too long
+            ERROR_MSG=$(echo "$MANIFEST_OUTPUT" | head -c 500)
+            echo "::warning::Cannot access image $IMAGE. Error: ${ERROR_MSG}. SBOM generation will be skipped."
           fi
-        else
+        fi
+
+        # Only attempt SBOM generation if manifest check passed
+        if [ "$PERMISSION_ERROR" != "true" ] && [ "$REGISTRY_AUTH_ERROR" != "true" ] && [ "$IMAGE_NOT_FOUND" != "true" ]; then
           # Generate CycloneDX SBOM
           CYCLONEDX_FILE="sboms/${PACKAGE_SANITIZED}-cyclonedx.json"
           SYFT_OUTPUT=$(syft scan "$IMAGE" -o cyclonedx-json 2>&1)
@@ -260,14 +271,22 @@ runs:
             if echo "$SYFT_OUTPUT" | grep -qiE "unauthorized|authentication|permission|forbidden|denied|401|403"; then
               REGISTRY_AUTH_ERROR=true
               PERMISSION_ERROR=true
-              echo "::warning::CycloneDX SBOM generation failed due to registry authentication. Ensure your workflow has 'packages: read' permission. Error: $SYFT_OUTPUT"
+              ERROR_MSG=$(echo "$SYFT_OUTPUT" | head -c 500)
+              echo "::warning::CycloneDX SBOM generation failed due to registry authentication. Ensure your workflow has 'packages: read' permission."
+              echo "::warning::Error details: ${ERROR_MSG}"
             elif echo "$SYFT_OUTPUT" | grep -qiE "manifest unknown|not found|does not exist|404"; then
               IMAGE_NOT_FOUND=true
-              echo "::warning::CycloneDX SBOM generation failed - image not found. This may be a timing issue. Error: $SYFT_OUTPUT"
+              ERROR_MSG=$(echo "$SYFT_OUTPUT" | head -c 500)
+              echo "::warning::CycloneDX SBOM generation failed - image not found. This may be a timing issue."
+              echo "::warning::Error details: ${ERROR_MSG}"
             elif echo "$SYFT_OUTPUT" | grep -qiE "network|connection|timeout|unreachable"; then
-              echo "::warning::CycloneDX SBOM generation failed due to network issues. Error: $SYFT_OUTPUT"
+              ERROR_MSG=$(echo "$SYFT_OUTPUT" | head -c 500)
+              echo "::warning::CycloneDX SBOM generation failed due to network issues."
+              echo "::warning::Error details: ${ERROR_MSG}"
             else
-              echo "::warning::CycloneDX SBOM generation failed: $SYFT_OUTPUT"
+              ERROR_MSG=$(echo "$SYFT_OUTPUT" | head -c 500)
+              echo "::warning::CycloneDX SBOM generation failed."
+              echo "::warning::Error details: ${ERROR_MSG}"
             fi
             rm -f "$CYCLONEDX_FILE"
           fi
@@ -284,18 +303,26 @@ runs:
             if echo "$SYFT_OUTPUT" | grep -qiE "unauthorized|authentication|permission|forbidden|denied|401|403"; then
               REGISTRY_AUTH_ERROR=true
               PERMISSION_ERROR=true
-              echo "::warning::SPDX SBOM generation failed due to registry authentication. Ensure your workflow has 'packages: read' permission. Error: $SYFT_OUTPUT"
+              ERROR_MSG=$(echo "$SYFT_OUTPUT" | head -c 500)
+              echo "::warning::SPDX SBOM generation failed due to registry authentication. Ensure your workflow has 'packages: read' permission."
+              echo "::warning::Error details: ${ERROR_MSG}"
             elif echo "$SYFT_OUTPUT" | grep -qiE "manifest unknown|not found|does not exist|404"; then
               IMAGE_NOT_FOUND=true
-              echo "::warning::SPDX SBOM generation failed - image not found. This may be a timing issue. Error: $SYFT_OUTPUT"
+              ERROR_MSG=$(echo "$SYFT_OUTPUT" | head -c 500)
+              echo "::warning::SPDX SBOM generation failed - image not found. This may be a timing issue."
+              echo "::warning::Error details: ${ERROR_MSG}"
             elif echo "$SYFT_OUTPUT" | grep -qiE "network|connection|timeout|unreachable"; then
-              echo "::warning::SPDX SBOM generation failed due to network issues. Error: $SYFT_OUTPUT"
+              ERROR_MSG=$(echo "$SYFT_OUTPUT" | head -c 500)
+              echo "::warning::SPDX SBOM generation failed due to network issues."
+              echo "::warning::Error details: ${ERROR_MSG}"
             else
-              echo "::warning::SPDX SBOM generation failed: $SYFT_OUTPUT"
+              ERROR_MSG=$(echo "$SYFT_OUTPUT" | head -c 500)
+              echo "::warning::SPDX SBOM generation failed."
+              echo "::warning::Error details: ${ERROR_MSG}"
             fi
             rm -f "$SPDX_FILE"
           fi
-        fi
+        fi  # End of SBOM generation (only if manifest check passed)
 
         # Set output flags for downstream steps
         if [ "$PERMISSION_ERROR" = "true" ]; then
@@ -343,16 +370,16 @@ runs:
         # SBOM Generation Summary
         if [ "${{ steps.sbom.outputs.sbom_files_exist }}" != "true" ]; then
           echo "::notice::SBOM generation did not produce any files. Build completed successfully, but SBOM artifacts are missing."
-          if [ "${{ steps.sbom.outputs.sbom_registry_auth_error }}" == "true" ]; then
+          if [ "${{ steps.sbom.outputs.sbom_registry_auth_error }}" = "true" ]; then
             echo "::notice::Registry authentication issue detected. Ensure your workflow has 'packages: read' permission in the permissions block:"
             echo "::notice::  permissions:"
             echo "::notice::    packages: read"
             echo "::notice::    contents: read"
-          elif [ "${{ steps.sbom.outputs.sbom_image_not_found }}" == "true" ]; then
+          elif [ "${{ steps.sbom.outputs.sbom_image_not_found }}" = "true" ]; then
             echo "::notice::Image not found - this may be a timing issue if the image was just pushed. Consider adding a short delay or retry logic."
-          elif [ "${{ steps.sbom.outputs.sbom_permission_error }}" == "true" ]; then
+          elif [ "${{ steps.sbom.outputs.sbom_permission_error }}" = "true" ]; then
             echo "::notice::Image access issue detected. Please check registry permissions and authentication."
-          elif [ "${{ steps.sbom.outputs.sbom_error }}" == "true" ]; then
+          elif [ "${{ steps.sbom.outputs.sbom_error }}" = "true" ]; then
             echo "::notice::SBOM generation encountered errors. Check the logs above for details."
           fi
         else
