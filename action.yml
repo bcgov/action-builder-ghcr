@@ -210,35 +210,89 @@ runs:
 
     - name: Generate SBOM
       if: steps.build.outputs.triggered == 'true' && inputs.sbom == 'true'
+      continue-on-error: true
       shell: bash
       run: |
+        set -uo pipefail  # Don't exit on error, we handle them explicitly
+
         # Generate SBOM in both cyclonedx and spdx formats
         IMAGE="ghcr.io/${{ steps.vars.outputs.image_path }}@${{ steps.build_and_push.outputs.digest }}"
 
-        # Create SBOMs directory
+        # Sanitize package name for file paths (handle nested paths like airbyte/airbyte-web)
+        PACKAGE_SANITIZED=$(echo "${{ inputs.package }}" | tr '/' '-')
+
+        # Create SBOMs directory structure
         mkdir -p sboms
 
-        # Generate CycloneDX SBOM
-        if ! syft scan "$IMAGE" -o cyclonedx-json > "sboms/${{ inputs.package }}-cyclonedx.json" 2>/dev/null; then
-          echo "::warning::CycloneDX SBOM generation failed"
+        SBOM_ERROR=false
+        PERMISSION_ERROR=false
+
+        # Check if we can access the image (permissions check)
+        if ! docker manifest inspect "$IMAGE" >/dev/null 2>&1; then
+          PERMISSION_ERROR=true
+          echo "::warning::Cannot access image $IMAGE. This may be due to insufficient permissions (id-token:write and attestations:write may be required). SBOM generation will be skipped."
+        else
+          # Generate CycloneDX SBOM
+          CYCLONEDX_FILE="sboms/${PACKAGE_SANITIZED}-cyclonedx.json"
+          if syft scan "$IMAGE" -o cyclonedx-json > "$CYCLONEDX_FILE" 2>&1; then
+            echo "✓ CycloneDX SBOM generated successfully"
+          else
+            SBOM_ERROR=true
+            SYFT_ERROR=$(syft scan "$IMAGE" -o cyclonedx-json 2>&1 || true)
+            if echo "$SYFT_ERROR" | grep -qi "permission\|unauthorized\|access denied\|forbidden"; then
+              PERMISSION_ERROR=true
+              echo "::warning::CycloneDX SBOM generation failed due to insufficient permissions. Please ensure your workflow has id-token:write and attestations:write permissions."
+            else
+              echo "::warning::CycloneDX SBOM generation failed: $SYFT_ERROR"
+            fi
+            rm -f "$CYCLONEDX_FILE"
+          fi
+          
+          # Generate SPDX SBOM
+          SPDX_FILE="sboms/${PACKAGE_SANITIZED}-spdx.json"
+          if syft scan "$IMAGE" -o spdx-json > "$SPDX_FILE" 2>&1; then
+            echo "✓ SPDX SBOM generated successfully"
+          else
+            SBOM_ERROR=true
+            SYFT_ERROR=$(syft scan "$IMAGE" -o spdx-json 2>&1 || true)
+            if echo "$SYFT_ERROR" | grep -qi "permission\|unauthorized\|access denied\|forbidden"; then
+              PERMISSION_ERROR=true
+              echo "::warning::SPDX SBOM generation failed due to insufficient permissions. Please ensure your workflow has id-token:write and attestations:write permissions."
+            else
+              echo "::warning::SPDX SBOM generation failed: $SYFT_ERROR"
+            fi
+            rm -f "$SPDX_FILE"
+          fi
         fi
 
-        # Generate SPDX SBOM
-        if ! syft scan "$IMAGE" -o spdx-json > "sboms/${{ inputs.package }}-spdx.json" 2>/dev/null; then
-          echo "::warning::SPDX SBOM generation failed"
+        # Set output flags for downstream steps
+        if [ "$PERMISSION_ERROR" = "true" ]; then
+          echo "sbom_permission_error=true" >> $GITHUB_OUTPUT
+        fi
+        if [ "$SBOM_ERROR" = "true" ]; then
+          echo "sbom_error=true" >> $GITHUB_OUTPUT
         fi
 
-        # Upload SBOMs as artifacts
-        echo "sbom_cyclonedx=sboms/${{ inputs.package }}-cyclonedx.json" >> $GITHUB_OUTPUT
-        echo "sbom_spdx=sboms/${{ inputs.package }}-spdx.json" >> $GITHUB_OUTPUT
+        # Check if any SBOM files were created
+        if [ -n "$(find sboms -name '*.json' -type f 2>/dev/null)" ]; then
+          echo "sbom_files_exist=true" >> $GITHUB_OUTPUT
+        else
+          echo "sbom_files_exist=false" >> $GITHUB_OUTPUT
+          if [ "$PERMISSION_ERROR" = "true" ]; then
+            echo "::warning::SBOM generation skipped due to insufficient permissions. Workflow will continue without SBOM artifacts."
+          else
+            echo "::warning::No SBOM files were generated. Workflow will continue without SBOM artifacts."
+          fi
+        fi
 
     - name: Upload SBOMs
       uses: actions/upload-artifact@v5
       if: steps.build.outputs.triggered == 'true' && inputs.sbom == 'true'
+      continue-on-error: true
       with:
         name: sboms-${{ inputs.package }}-${{ steps.vars.outputs.first_tag }}
         path: sboms/
-        if-no-files-found: error
+        if-no-files-found: warn
 
     - name: Attestation
       continue-on-error: true
