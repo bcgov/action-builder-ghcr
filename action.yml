@@ -16,10 +16,8 @@ inputs:
   build_file:
     description: Dockerfile with path, not required for self-contained package/default directory
   sbom:
-    default: 'true'
+    default: "true"
     description: Generate a Software Bill of Materials (SBOM) for the container image. Enabled by default for better security practices.
-  keep_versions:
-    description: Number of versions to keep; omit to skip
   tag_fallback:
     description: Where to pull default images from; e.g. prod, test
   tags:
@@ -34,17 +32,13 @@ inputs:
   triggers:
     description: Paths used to trigger a build; e.g. ('./backend/' './frontend/)
 
-
   ### Usually a bad idea / not recommended
   build_args:
     description: A list of build-time variables, generally not advisable
-    value: "BUILDKIT_INLINE_CACHE=1"
+    default: "BUILDKIT_INLINE_CACHE=1"
   diff_branch:
     description: Branch to diff against
     default: ${{ github.event.repository.default_branch }}
-  keep_regex:
-    description: Regex for tags to ignore (not delete); defaults to prod, test and semvers
-    default: '^(prod|test|(v(\d+)(\.\d+){0,2}.*))$'
   repository:
     description: Non-default repo to clone
     default: ${{ github.repository }}
@@ -64,7 +58,7 @@ inputs:
 
 outputs:
   digest:
-    description: 'Digest of the built image; e.g. sha256:1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef'
+    description: "Digest of the built image; e.g. sha256:1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef"
     value: ${{ steps.build_and_push.outputs.digest }}
 
   triggered:
@@ -88,7 +82,7 @@ runs:
           echo "Input 'tag' is deprecated. Please use 'tags' instead."
           exit 1
         fi
-        
+
         # If package matches repo name, use simpler image_path
         if [ "${INPUT_PACKAGE,,}" = "${CONTEXT_REPO,,}" ]; then
           image_path="${{ github.repository }}"
@@ -97,20 +91,19 @@ runs:
         fi
         echo "image_path=${image_path,,}" >> $GITHUB_OUTPUT
 
-        # Comma-separated list (e.g. ghcr.io/org/repo/package:tag1,ghcr.io/org/repo/package:tag2)
-        tags_csv=$(echo "${{ inputs.tags }}" | grep -v '^$' | sed "s|^|ghcr.io/${image_path}:|" | tr '[:upper:]' '[:lower:]' | paste -sd,)
-        echo "tags_csv=${tags_csv}" >> $GITHUB_OUTPUT
+        # Convert multiline tags to metadata-action format (type=raw,value=tag)
+        # Each line becomes: type=raw,value=<tag>
+        metadata_tags=$(echo "${{ inputs.tags }}" | grep -v '^$' | tr '[:upper:]' '[:lower:]' | sed 's/^/type=raw,value=/')
+        echo "metadata_tags<<EOF" >> $GITHUB_OUTPUT
+        echo "$metadata_tags" >> $GITHUB_OUTPUT
+        echo "EOF" >> $GITHUB_OUTPUT
 
-    # Cleanup if inputs.keep_versions provided
-    - name: GHCR Cleanup
-      if: inputs.keep_versions
-      continue-on-error: true # Stop fail if no versions to delete
-      uses: actions/delete-package-versions@v5.0.0
-      with:
-        package-name: "${{ steps.vars.outputs.image_path }}"
-        package-type: "container"
-        min-versions-to-keep: ${{ inputs.keep_versions }}
-        ignore-versions: "${{ inputs.keep_regex }}"
+        # Extract first tag for artifact naming (sanitized for artifact name compatibility)
+        # Artifact names can contain: letters, numbers, hyphens, underscores, and periods
+        first_tag=$(echo "${{ inputs.tags }}" | grep -v '^$' | head -n 1 | tr '[:upper:]' '[:lower:]' | tr -cd '[:alnum:]._-')
+        # Fallback to 'artifact' if sanitized tag is empty
+        first_tag="${first_tag:-artifact}"
+        echo "first_tag=${first_tag}" >> $GITHUB_OUTPUT
 
     # Send triggers to diff action
     - id: diff
@@ -153,7 +146,7 @@ runs:
         tags: |
           ${{ inputs.tags }}
 
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v5
       with:
         repository: ${{ inputs.repository }}
 
@@ -167,7 +160,15 @@ runs:
       with:
         registry: ghcr.io
         username: ${{ github.actor }}
-        password: ${{ inputs.token }} 
+        password: ${{ inputs.token }}
+
+    - name: Prepare Container Metadata tags
+      id: meta
+      if: steps.build.outputs.triggered == 'true'
+      uses: docker/metadata-action@318604b99e75e41977312d83839a89be02ca4893 # v5
+      with:
+        images: ghcr.io/${{ steps.vars.outputs.image_path }}
+        tags: ${{ steps.vars.outputs.metadata_tags }}
 
     - name: Build and push ${{ inputs.package }} Docker image
       id: build_and_push
@@ -177,7 +178,9 @@ runs:
         context: ${{ inputs.build_context || inputs.package }}
         file: ${{ inputs.build_file || format('{0}/Dockerfile', inputs.package) }}
         push: true
-        tags: ${{ steps.vars.outputs.tags_csv }}
+        tags: ${{ steps.meta.outputs.tags }}
+        labels: ${{ steps.meta.outputs.labels }}
+        annotations: ${{ steps.meta.outputs.annotations }}
         cache-from: type=gha
         cache-to: type=gha,mode=max
         build-args: ${{ inputs.build_args }}
@@ -187,35 +190,66 @@ runs:
       if: steps.build.outputs.triggered == 'true' && inputs.sbom == 'true'
       shell: bash
       run: |
+        # Install Syft
         curl -sSfL https://raw.githubusercontent.com/anchore/syft/main/install.sh | sh -s -- -b /usr/local/bin
 
     - name: Generate SBOM
+      id: sbom
       if: steps.build.outputs.triggered == 'true' && inputs.sbom == 'true'
+      continue-on-error: true
       shell: bash
       run: |
-        # Generate SBOM in both cyclonedx and spdx formats
+        set +e -u
+
         IMAGE="ghcr.io/${{ steps.vars.outputs.image_path }}@${{ steps.build_and_push.outputs.digest }}"
-        
-        # Create SBOMs directory
+        PACKAGE_SANITIZED=$(echo "${{ inputs.package }}" | tr '/:' '-' | tr -d ' ')
+        echo "package_sanitized=${PACKAGE_SANITIZED}" >> $GITHUB_OUTPUT
+
         mkdir -p sboms
-        
-        # Generate CycloneDX SBOM
-        syft packages "$IMAGE" -o cyclonedx-json > "sboms/${{ inputs.package }}-cyclonedx.json"
-        
-        # Generate SPDX SBOM
-        syft packages "$IMAGE" -o spdx-json > "sboms/${{ inputs.package }}-spdx.json"
-        
-        # Upload SBOMs as artifacts
-        echo "sbom_cyclonedx=sboms/${{ inputs.package }}-cyclonedx.json" >> $GITHUB_OUTPUT
-        echo "sbom_spdx=sboms/${{ inputs.package }}-spdx.json" >> $GITHUB_OUTPUT
+
+        # Check image accessibility
+        if ! docker manifest inspect "$IMAGE" >/dev/null 2>&1; then
+          echo "::warning::Cannot access image $IMAGE. SBOM generation will be skipped."
+          echo "sbom_files_exist=false" >> $GITHUB_OUTPUT
+          exit 0
+        fi
+
+        # Generate both formats in a single scan
+        CYCLONEDX_FILE="sboms/${PACKAGE_SANITIZED}-cyclonedx.json"
+        SPDX_FILE="sboms/${PACKAGE_SANITIZED}-spdx.json"
+        stderr_file=$(mktemp)
+
+        syft scan "$IMAGE" \
+          -o cyclonedx-json="$CYCLONEDX_FILE" \
+          -o spdx-json="$SPDX_FILE" \
+          2>"$stderr_file"
+
+        exit_code=$?
+        stderr=$(cat "$stderr_file")
+        rm -f "$stderr_file"
+
+        if [ $exit_code -eq 0 ]; then
+          if [ -n "$stderr" ]; then
+            echo "::notice::Syft warnings: ${stderr}"
+          fi
+          echo "✓ SBOMs generated successfully (CycloneDX and SPDX)"
+          echo "sbom_files_exist=true" >> $GITHUB_OUTPUT
+        else
+          error_msg=$(echo "$stderr" | head -c 500)
+          echo "::warning::SBOM generation failed: ${error_msg}"
+          rm -f "$CYCLONEDX_FILE" "$SPDX_FILE"
+          echo "sbom_files_exist=false" >> $GITHUB_OUTPUT
+          echo "::warning::No SBOM files were generated. Workflow will continue without SBOM artifacts."
+        fi
 
     - name: Upload SBOMs
-      uses: actions/upload-artifact@v4
-      if: steps.build.outputs.triggered == 'true' && inputs.sbom == 'true'
+      uses: actions/upload-artifact@v5
+      if: steps.build.outputs.triggered == 'true' && inputs.sbom == 'true' && steps.sbom.outputs.sbom_files_exist == 'true'
+      continue-on-error: true
       with:
-        name: sboms-${{ inputs.package }}
+        name: sboms-${{ steps.sbom.outputs.package_sanitized }}-${{ steps.vars.outputs.first_tag }}
         path: sboms/
-        if-no-files-found: error
+        if-no-files-found: warn
 
     - name: Attest
       continue-on-error: true
@@ -270,7 +304,7 @@ runs:
     # Action repo needs to be present for cleanup/tests
     - name: Checkout local repo to make sure action.yml is present
       if: github.repository != inputs.repository || failure()
-      uses: actions/checkout@v4
+      uses: actions/checkout@v5
 
     - name: Print summary outputs
       if: always() # Always run this step to summarize the build
@@ -279,5 +313,5 @@ runs:
         echo "---- Build Summary ----"
         echo "digest: ${{ steps.build_and_push.outputs.digest }}"
         echo "triggered: ${{ steps.diff.outputs.triggered }}"
-        echo "tags_csv: ${{ steps.vars.outputs.tags_csv }}"
+        echo "tags: ${{ steps.meta.outputs.tags }}"
         echo "-----------------------"
