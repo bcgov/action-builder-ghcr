@@ -206,6 +206,7 @@ runs:
       if: steps.build.outputs.triggered == 'true' && inputs.sbom == 'true'
       shell: bash
       run: |
+        # Install Syft
         curl -sSfL https://raw.githubusercontent.com/anchore/syft/main/install.sh | sh -s -- -b /usr/local/bin
 
     - name: Generate SBOM
@@ -214,6 +215,7 @@ runs:
       continue-on-error: true
       shell: bash
       run: |
+        # Generate SBOMs
         set -uo  # Don't exit on error, we handle them explicitly
 
         # Generate SBOM in both cyclonedx and spdx formats
@@ -336,6 +338,7 @@ runs:
       if: steps.build.outputs.triggered == 'true' && inputs.sbom == 'true'
       shell: bash
       run: |
+        # SBOM Generation Summary
         if [ "${{ steps.sbom.outputs.sbom_files_exist }}" != "true" ]; then
           echo "::notice::SBOM generation did not produce any files. Build completed successfully, but SBOM artifacts are missing."
           if [ "${{ steps.sbom.outputs.sbom_registry_auth_error }}" == "true" ]; then
