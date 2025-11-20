@@ -290,12 +290,27 @@ runs:
 
     - name: Upload SBOMs
       uses: actions/upload-artifact@v5
-      if: steps.build.outputs.triggered == 'true' && inputs.sbom == 'true'
+      if: steps.build.outputs.triggered == 'true' && inputs.sbom == 'true' && steps.sbom.outputs.sbom_files_exist == 'true'
       continue-on-error: true
       with:
         name: sboms-${{ inputs.package }}-${{ steps.vars.outputs.first_tag }}
         path: sboms/
         if-no-files-found: warn
+
+    - name: SBOM Generation Summary
+      if: steps.build.outputs.triggered == 'true' && inputs.sbom == 'true'
+      shell: bash
+      run: |
+        if [ "${{ steps.sbom.outputs.sbom_files_exist }}" != "true" ]; then
+          echo "::notice::SBOM generation did not produce any files. Build completed successfully, but SBOM artifacts are missing."
+          if [ "${{ steps.sbom.outputs.sbom_permission_error }}" == "true" ]; then
+            echo "::notice::This appears to be due to image access issues. Please check registry permissions."
+          elif [ "${{ steps.sbom.outputs.sbom_error }}" == "true" ]; then
+            echo "::notice::SBOM generation encountered errors. Check the logs above for details."
+          fi
+        else
+          echo "✓ SBOM generation completed successfully"
+        fi
 
     - name: Attestation
       continue-on-error: true
