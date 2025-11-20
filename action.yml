@@ -216,60 +216,44 @@ runs:
       shell: bash
       run: |
         set +e -u
-        
+
         IMAGE="ghcr.io/${{ steps.vars.outputs.image_path }}@${{ steps.build_and_push.outputs.digest }}"
         PACKAGE_SANITIZED=$(echo "${{ inputs.package }}" | tr '/' '-')
         echo "package_sanitized=${PACKAGE_SANITIZED}" >> $GITHUB_OUTPUT
-        
+
         mkdir -p sboms
-        
+
         # Check image accessibility
         if ! docker manifest inspect "$IMAGE" >/dev/null 2>&1; then
           echo "::warning::Cannot access image $IMAGE. SBOM generation will be skipped."
           echo "sbom_files_exist=false" >> $GITHUB_OUTPUT
           exit 0
         fi
+
+        # Generate both formats in a single scan
+        CYCLONEDX_FILE="sboms/${PACKAGE_SANITIZED}-cyclonedx.json"
+        SPDX_FILE="sboms/${PACKAGE_SANITIZED}-spdx.json"
+        stderr_file=$(mktemp)
         
-        # Helper function to generate SBOM
-        generate_sbom() {
-          local format=$1
-          local output_file=$2
-          local stderr_file=$(mktemp)
-          local stdout=$(syft scan "$IMAGE" -o "$format" 2>"$stderr_file")
-          local exit_code=$?
-          local stderr=$(cat "$stderr_file")
-          rm -f "$stderr_file"
-          
-          if [ $exit_code -eq 0 ]; then
-            if [ -n "$stderr" ]; then
-              echo "::notice::Syft warnings during ${format} generation: ${stderr}"
-            fi
-            echo "$stdout" > "$output_file"
-            echo "✓ ${format} SBOM generated successfully"
-            return 0
-          else
-            local error_msg=$(echo "$stderr" | head -c 500)
-            echo "::warning::${format} SBOM generation failed: ${error_msg}"
-            return 1
+        syft scan "$IMAGE" \
+          -o cyclonedx-json="$CYCLONEDX_FILE" \
+          -o spdx-json="$SPDX_FILE" \
+          2>"$stderr_file"
+        
+        exit_code=$?
+        stderr=$(cat "$stderr_file")
+        rm -f "$stderr_file"
+        
+        if [ $exit_code -eq 0 ]; then
+          if [ -n "$stderr" ]; then
+            echo "::notice::Syft warnings: ${stderr}"
           fi
-        }
-        
-        # Generate both formats
-        CYCLONEDX_OK=false
-        SPDX_OK=false
-        
-        if generate_sbom "cyclonedx-json" "sboms/${PACKAGE_SANITIZED}-cyclonedx.json"; then
-          CYCLONEDX_OK=true
-        fi
-        
-        if generate_sbom "spdx-json" "sboms/${PACKAGE_SANITIZED}-spdx.json"; then
-          SPDX_OK=true
-        fi
-        
-        # Set outputs
-        if [ "$CYCLONEDX_OK" = "true" ] || [ "$SPDX_OK" = "true" ]; then
+          echo "✓ SBOMs generated successfully (CycloneDX and SPDX)"
           echo "sbom_files_exist=true" >> $GITHUB_OUTPUT
         else
+          error_msg=$(echo "$stderr" | head -c 500)
+          echo "::warning::SBOM generation failed: ${error_msg}"
+          rm -f "$CYCLONEDX_FILE" "$SPDX_FILE"
           echo "sbom_files_exist=false" >> $GITHUB_OUTPUT
           echo "::warning::No SBOM files were generated. Workflow will continue without SBOM artifacts."
         fi
