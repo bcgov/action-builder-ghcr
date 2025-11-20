@@ -223,6 +223,7 @@ runs:
 
         # Sanitize package name for file paths (handle nested paths like airbyte/airbyte-web)
         PACKAGE_SANITIZED=$(echo "${{ inputs.package }}" | tr '/' '-')
+        echo "package_sanitized=${PACKAGE_SANITIZED}" >> $GITHUB_OUTPUT
 
         # Create SBOMs directory structure
         mkdir -p sboms
@@ -261,30 +262,39 @@ runs:
         if [ "$PERMISSION_ERROR" != "true" ] && [ "$REGISTRY_AUTH_ERROR" != "true" ] && [ "$IMAGE_NOT_FOUND" != "true" ]; then
           # Generate CycloneDX SBOM
           CYCLONEDX_FILE="sboms/${PACKAGE_SANITIZED}-cyclonedx.json"
-          SYFT_OUTPUT=$(syft scan "$IMAGE" -o cyclonedx-json 2>&1)
+          # Capture stdout (JSON) and stderr (warnings/errors) separately to avoid corrupting JSON
+          SYFT_STDERR_FILE=$(mktemp)
+          SYFT_STDOUT=$(syft scan "$IMAGE" -o cyclonedx-json 2>"$SYFT_STDERR_FILE")
           SYFT_EXIT=$?
+          SYFT_STDERR=$(cat "$SYFT_STDERR_FILE")
+          rm -f "$SYFT_STDERR_FILE"
           if [ $SYFT_EXIT -eq 0 ]; then
-            echo "$SYFT_OUTPUT" > "$CYCLONEDX_FILE"
+            # On success, write only stdout (JSON) to file, but log stderr warnings if any
+            if [ -n "$SYFT_STDERR" ]; then
+              echo "::notice::Syft warnings during CycloneDX generation: ${SYFT_STDERR}"
+            fi
+            echo "$SYFT_STDOUT" > "$CYCLONEDX_FILE"
             echo "✓ CycloneDX SBOM generated successfully"
           else
             SBOM_ERROR=true
-            if echo "$SYFT_OUTPUT" | grep -qiE "unauthorized|authentication|permission|forbidden|denied|401|403"; then
+            # Use stderr for error detection
+            if echo "$SYFT_STDERR" | grep -qiE "unauthorized|authentication|permission|forbidden|denied|401|403"; then
               REGISTRY_AUTH_ERROR=true
               PERMISSION_ERROR=true
-              ERROR_MSG=$(echo "$SYFT_OUTPUT" | head -c 500)
+              ERROR_MSG=$(echo "$SYFT_STDERR" | head -c 500)
               echo "::warning::CycloneDX SBOM generation failed due to registry authentication. Ensure your workflow has 'packages: read' permission."
               echo "::warning::Error details: ${ERROR_MSG}"
-            elif echo "$SYFT_OUTPUT" | grep -qiE "manifest unknown|not found|does not exist|404"; then
+            elif echo "$SYFT_STDERR" | grep -qiE "manifest unknown|not found|does not exist|404"; then
               IMAGE_NOT_FOUND=true
-              ERROR_MSG=$(echo "$SYFT_OUTPUT" | head -c 500)
+              ERROR_MSG=$(echo "$SYFT_STDERR" | head -c 500)
               echo "::warning::CycloneDX SBOM generation failed - image not found. This may be a timing issue."
               echo "::warning::Error details: ${ERROR_MSG}"
-            elif echo "$SYFT_OUTPUT" | grep -qiE "network|connection|timeout|unreachable"; then
-              ERROR_MSG=$(echo "$SYFT_OUTPUT" | head -c 500)
+            elif echo "$SYFT_STDERR" | grep -qiE "network|connection|timeout|unreachable"; then
+              ERROR_MSG=$(echo "$SYFT_STDERR" | head -c 500)
               echo "::warning::CycloneDX SBOM generation failed due to network issues."
               echo "::warning::Error details: ${ERROR_MSG}"
             else
-              ERROR_MSG=$(echo "$SYFT_OUTPUT" | head -c 500)
+              ERROR_MSG=$(echo "$SYFT_STDERR" | head -c 500)
               echo "::warning::CycloneDX SBOM generation failed."
               echo "::warning::Error details: ${ERROR_MSG}"
             fi
@@ -293,30 +303,39 @@ runs:
           
           # Generate SPDX SBOM
           SPDX_FILE="sboms/${PACKAGE_SANITIZED}-spdx.json"
-          SYFT_OUTPUT=$(syft scan "$IMAGE" -o spdx-json 2>&1)
+          # Capture stdout (JSON) and stderr (warnings/errors) separately to avoid corrupting JSON
+          SYFT_STDERR_FILE=$(mktemp)
+          SYFT_STDOUT=$(syft scan "$IMAGE" -o spdx-json 2>"$SYFT_STDERR_FILE")
           SYFT_EXIT=$?
+          SYFT_STDERR=$(cat "$SYFT_STDERR_FILE")
+          rm -f "$SYFT_STDERR_FILE"
           if [ $SYFT_EXIT -eq 0 ]; then
-            echo "$SYFT_OUTPUT" > "$SPDX_FILE"
+            # On success, write only stdout (JSON) to file, but log stderr warnings if any
+            if [ -n "$SYFT_STDERR" ]; then
+              echo "::notice::Syft warnings during SPDX generation: ${SYFT_STDERR}"
+            fi
+            echo "$SYFT_STDOUT" > "$SPDX_FILE"
             echo "✓ SPDX SBOM generated successfully"
           else
             SBOM_ERROR=true
-            if echo "$SYFT_OUTPUT" | grep -qiE "unauthorized|authentication|permission|forbidden|denied|401|403"; then
+            # Use stderr for error detection
+            if echo "$SYFT_STDERR" | grep -qiE "unauthorized|authentication|permission|forbidden|denied|401|403"; then
               REGISTRY_AUTH_ERROR=true
               PERMISSION_ERROR=true
-              ERROR_MSG=$(echo "$SYFT_OUTPUT" | head -c 500)
+              ERROR_MSG=$(echo "$SYFT_STDERR" | head -c 500)
               echo "::warning::SPDX SBOM generation failed due to registry authentication. Ensure your workflow has 'packages: read' permission."
               echo "::warning::Error details: ${ERROR_MSG}"
-            elif echo "$SYFT_OUTPUT" | grep -qiE "manifest unknown|not found|does not exist|404"; then
+            elif echo "$SYFT_STDERR" | grep -qiE "manifest unknown|not found|does not exist|404"; then
               IMAGE_NOT_FOUND=true
-              ERROR_MSG=$(echo "$SYFT_OUTPUT" | head -c 500)
+              ERROR_MSG=$(echo "$SYFT_STDERR" | head -c 500)
               echo "::warning::SPDX SBOM generation failed - image not found. This may be a timing issue."
               echo "::warning::Error details: ${ERROR_MSG}"
-            elif echo "$SYFT_OUTPUT" | grep -qiE "network|connection|timeout|unreachable"; then
-              ERROR_MSG=$(echo "$SYFT_OUTPUT" | head -c 500)
+            elif echo "$SYFT_STDERR" | grep -qiE "network|connection|timeout|unreachable"; then
+              ERROR_MSG=$(echo "$SYFT_STDERR" | head -c 500)
               echo "::warning::SPDX SBOM generation failed due to network issues."
               echo "::warning::Error details: ${ERROR_MSG}"
             else
-              ERROR_MSG=$(echo "$SYFT_OUTPUT" | head -c 500)
+              ERROR_MSG=$(echo "$SYFT_STDERR" | head -c 500)
               echo "::warning::SPDX SBOM generation failed."
               echo "::warning::Error details: ${ERROR_MSG}"
             fi
@@ -359,7 +378,7 @@ runs:
       if: steps.build.outputs.triggered == 'true' && inputs.sbom == 'true' && steps.sbom.outputs.sbom_files_exist == 'true'
       continue-on-error: true
       with:
-        name: sboms-${{ inputs.package }}-${{ steps.vars.outputs.first_tag }}
+        name: sboms-${{ steps.sbom.outputs.package_sanitized }}-${{ steps.vars.outputs.first_tag }}
         path: sboms/
         if-no-files-found: warn
 
