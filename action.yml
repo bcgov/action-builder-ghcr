@@ -181,7 +181,7 @@ runs:
     - name: Prepare Container Metadata tags
       id: meta
       if: steps.build.outputs.triggered == 'true'
-      uses: docker/metadata-action@902fa8ec7d6ecbf8d84d538b9b233a880e428804 # v5
+      uses: docker/metadata-action@318604b99e75e41977312d83839a89be02ca4893 # v5
       with:
         images: ghcr.io/${{ steps.vars.outputs.image_path }}
         tags: ${{ steps.vars.outputs.metadata_tags }}
@@ -206,39 +206,66 @@ runs:
       if: steps.build.outputs.triggered == 'true' && inputs.sbom == 'true'
       shell: bash
       run: |
+        # Install Syft
         curl -sSfL https://raw.githubusercontent.com/anchore/syft/main/install.sh | sh -s -- -b /usr/local/bin
 
     - name: Generate SBOM
+      id: sbom
       if: steps.build.outputs.triggered == 'true' && inputs.sbom == 'true'
+      continue-on-error: true
       shell: bash
       run: |
-        # Generate SBOM in both cyclonedx and spdx formats
-        IMAGE="ghcr.io/${{ steps.vars.outputs.image_path }}@${{ steps.build_and_push.outputs.digest }}"
+        set +e -u
 
-        # Create SBOMs directory
+        IMAGE="ghcr.io/${{ steps.vars.outputs.image_path }}@${{ steps.build_and_push.outputs.digest }}"
+        PACKAGE_SANITIZED=$(echo "${{ inputs.package }}" | tr '/:' '-' | tr -d ' ')
+        echo "package_sanitized=${PACKAGE_SANITIZED}" >> $GITHUB_OUTPUT
+
         mkdir -p sboms
 
-        # Generate CycloneDX SBOM
-        if ! syft scan "$IMAGE" -o cyclonedx-json > "sboms/${{ inputs.package }}-cyclonedx.json" 2>/dev/null; then
-          echo "::warning::CycloneDX SBOM generation failed"
+        # Check image accessibility
+        if ! docker manifest inspect "$IMAGE" >/dev/null 2>&1; then
+          echo "::warning::Cannot access image $IMAGE. SBOM generation will be skipped."
+          echo "sbom_files_exist=false" >> $GITHUB_OUTPUT
+          exit 0
         fi
 
-        # Generate SPDX SBOM
-        if ! syft scan "$IMAGE" -o spdx-json > "sboms/${{ inputs.package }}-spdx.json" 2>/dev/null; then
-          echo "::warning::SPDX SBOM generation failed"
-        fi
+        # Generate both formats in a single scan
+        CYCLONEDX_FILE="sboms/${PACKAGE_SANITIZED}-cyclonedx.json"
+        SPDX_FILE="sboms/${PACKAGE_SANITIZED}-spdx.json"
+        stderr_file=$(mktemp)
 
-        # Upload SBOMs as artifacts
-        echo "sbom_cyclonedx=sboms/${{ inputs.package }}-cyclonedx.json" >> $GITHUB_OUTPUT
-        echo "sbom_spdx=sboms/${{ inputs.package }}-spdx.json" >> $GITHUB_OUTPUT
+        syft scan "$IMAGE" \
+          -o cyclonedx-json="$CYCLONEDX_FILE" \
+          -o spdx-json="$SPDX_FILE" \
+          2>"$stderr_file"
+
+        exit_code=$?
+        stderr=$(cat "$stderr_file")
+        rm -f "$stderr_file"
+
+        if [ $exit_code -eq 0 ]; then
+          if [ -n "$stderr" ]; then
+            echo "::notice::Syft warnings: ${stderr}"
+          fi
+          echo "✓ SBOMs generated successfully (CycloneDX and SPDX)"
+          echo "sbom_files_exist=true" >> $GITHUB_OUTPUT
+        else
+          error_msg=$(echo "$stderr" | head -c 500)
+          echo "::warning::SBOM generation failed: ${error_msg}"
+          rm -f "$CYCLONEDX_FILE" "$SPDX_FILE"
+          echo "sbom_files_exist=false" >> $GITHUB_OUTPUT
+          echo "::warning::No SBOM files were generated. Workflow will continue without SBOM artifacts."
+        fi
 
     - name: Upload SBOMs
       uses: actions/upload-artifact@v5
-      if: steps.build.outputs.triggered == 'true' && inputs.sbom == 'true'
+      if: steps.build.outputs.triggered == 'true' && inputs.sbom == 'true' && steps.sbom.outputs.sbom_files_exist == 'true'
+      continue-on-error: true
       with:
-        name: sboms-${{ inputs.package }}-${{ steps.vars.outputs.first_tag }}
+        name: sboms-${{ steps.sbom.outputs.package_sanitized }}-${{ steps.vars.outputs.first_tag }}
         path: sboms/
-        if-no-files-found: error
+        if-no-files-found: warn
 
     - name: Attestation
       continue-on-error: true
