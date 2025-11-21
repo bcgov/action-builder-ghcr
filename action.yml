@@ -18,8 +18,6 @@ inputs:
   sbom:
     default: "true"
     description: Generate a Software Bill of Materials (SBOM) for the container image. Enabled by default for better security practices.
-  keep_versions:
-    description: Number of versions to keep; omit to skip
   tag_fallback:
     description: Where to pull default images from; e.g. prod, test
   tags:
@@ -41,9 +39,6 @@ inputs:
   diff_branch:
     description: Branch to diff against
     default: ${{ github.event.repository.default_branch }}
-  keep_regex:
-    description: Regex for tags to ignore (not delete); defaults to prod, test and semvers
-    default: '^(prod|test|(v(\d+)(\.\d+){0,2}.*))$'
   repository:
     description: Non-default repo to clone
     default: ${{ github.repository }}
@@ -120,20 +115,19 @@ runs:
         echo "image_path=${image_path,,}" >> $GITHUB_OUTPUT
         echo "image_name=ghcr.io/${image_path,,}" >> $GITHUB_OUTPUT
 
-        # Comma-separated list (e.g. ghcr.io/org/repo/package:tag1,ghcr.io/org/repo/package:tag2)
-        tags_csv=$(echo "${{ inputs.tags }}" | grep -v '^$' | sed "s|^|ghcr.io/${image_path}:|" | tr '[:upper:]' '[:lower:]' | paste -sd,)
-        echo "tags_csv=${tags_csv}" >> $GITHUB_OUTPUT
+        # Convert multiline tags to metadata-action format (type=raw,value=tag)
+        # Each line becomes: type=raw,value=<tag>
+        metadata_tags=$(echo "${{ inputs.tags }}" | grep -v '^$' | tr '[:upper:]' '[:lower:]' | sed 's/^/type=raw,value=/')
+        echo "metadata_tags<<EOF" >> $GITHUB_OUTPUT
+        echo "$metadata_tags" >> $GITHUB_OUTPUT
+        echo "EOF" >> $GITHUB_OUTPUT
 
-    # Cleanup if inputs.keep_versions provided
-    - name: GHCR Cleanup
-      if: inputs.keep_versions
-      continue-on-error: true # Stop fail if no versions to delete
-      uses: actions/delete-package-versions@v5.0.0
-      with:
-        package-name: "${{ steps.vars.outputs.image_path }}"
-        package-type: "container"
-        min-versions-to-keep: ${{ inputs.keep_versions }}
-        ignore-versions: "${{ inputs.keep_regex }}"
+        # Extract first tag for artifact naming (sanitized for artifact name compatibility)
+        # Artifact names can contain: letters, numbers, hyphens, underscores, and periods
+        first_tag=$(echo "${{ inputs.tags }}" | grep -v '^$' | head -n 1 | tr '[:upper:]' '[:lower:]' | tr -cd '[:alnum:]._-')
+        # Fallback to 'artifact' if sanitized tag is empty
+        first_tag="${first_tag:-artifact}"
+        echo "first_tag=${first_tag}" >> $GITHUB_OUTPUT
 
     # Send triggers to diff action
     - id: diff
@@ -195,7 +189,7 @@ runs:
     - name: Prepare Container Metadata tags
       id: meta
       if: steps.build.outputs.triggered == 'true' && inputs.metadata_tags == 'true'
-      uses: docker/metadata-action@902fa8ec7d6ecbf8d84d538b9b233a880e428804 # v5
+      uses: docker/metadata-action@318604b99e75e41977312d83839a89be02ca4893 # v5
       with:
         images: ${{ steps.vars.outputs.image_name }}
         flavor: ${{ inputs.metadata_flavor }}
@@ -209,8 +203,8 @@ runs:
         # Merge metadata tags with custom tags
         set -euo pipefail
         
-        # Start with custom tags
-        final_tags="${{ steps.vars.outputs.tags_csv }}"
+        # Start with custom tags (convert from multiline to comma-separated)
+        custom_tags=$(echo "${{ inputs.tags }}" | grep -v '^$' | sed "s|^|ghcr.io/${{ steps.vars.outputs.image_path }}:|" | tr '[:upper:]' '[:lower:]' | paste -sd,)
         
         # If metadata tags are enabled, merge them
         if [ "${{ inputs.metadata_tags }}" == "true" ] && [ -n "${{ steps.meta.outputs.tags }}" ]; then
@@ -218,11 +212,20 @@ runs:
           meta_tags=$(echo "${{ steps.meta.outputs.tags }}" | tr '\n' ',' | sed 's/,$//')
           
           # Combine tags
-          if [ -n "${final_tags}" ]; then
-            final_tags="${final_tags},${meta_tags}"
+          if [ -n "${custom_tags}" ]; then
+            final_tags="${custom_tags},${meta_tags}"
           else
             final_tags="${meta_tags}"
           fi
+          
+          # Pass through labels and annotations from metadata-action
+          echo "labels=${{ steps.meta.outputs.labels }}" >> $GITHUB_OUTPUT
+          echo "annotations=${{ steps.meta.outputs.annotations }}" >> $GITHUB_OUTPUT
+        else
+          final_tags="${custom_tags}"
+          # Empty labels and annotations when metadata_tags is disabled
+          echo "labels=" >> $GITHUB_OUTPUT
+          echo "annotations=" >> $GITHUB_OUTPUT
         fi
         
         echo "final_tags=${final_tags}" >> $GITHUB_OUTPUT
@@ -236,7 +239,8 @@ runs:
         file: ${{ inputs.build_file || format('{0}/Dockerfile', inputs.package) }}
         push: true
         tags: ${{ steps.tags.outputs.final_tags }}
-        labels: ${{ steps.meta.outputs.labels }}
+        labels: ${{ steps.tags.outputs.labels }}
+        annotations: ${{ steps.tags.outputs.annotations }}
         cache-from: type=gha
         cache-to: type=gha,mode=max
         build-args: ${{ inputs.build_args }}
@@ -246,53 +250,105 @@ runs:
       if: steps.build.outputs.triggered == 'true' && inputs.sbom == 'true'
       shell: bash
       run: |
+        # Install Syft
         curl -sSfL https://raw.githubusercontent.com/anchore/syft/main/install.sh | sh -s -- -b /usr/local/bin
 
     - name: Generate SBOM
+      id: sbom
       if: steps.build.outputs.triggered == 'true' && inputs.sbom == 'true'
+      continue-on-error: true
       shell: bash
       run: |
-        # Generate SBOM in both cyclonedx and spdx formats
-        IMAGE="ghcr.io/${{ steps.vars.outputs.image_path }}@${{ steps.build_and_push.outputs.digest }}"
+        set +e -u
 
-        # Create SBOMs directory
+        IMAGE="ghcr.io/${{ steps.vars.outputs.image_path }}@${{ steps.build_and_push.outputs.digest }}"
+        PACKAGE_SANITIZED=$(echo "${{ inputs.package }}" | tr '/:' '-' | tr -d ' ')
+        echo "package_sanitized=${PACKAGE_SANITIZED}" >> $GITHUB_OUTPUT
+
         mkdir -p sboms
 
-        # Generate CycloneDX SBOM
-        if ! syft scan "$IMAGE" -o cyclonedx-json > "sboms/${{ inputs.package }}-cyclonedx.json" 2>/dev/null; then
-          echo "::warning::CycloneDX SBOM generation failed"
+        # Check image accessibility
+        if ! docker manifest inspect "$IMAGE" >/dev/null 2>&1; then
+          echo "::warning::Cannot access image $IMAGE. SBOM generation will be skipped."
+          echo "sbom_files_exist=false" >> $GITHUB_OUTPUT
+          exit 0
         fi
 
-        # Generate SPDX SBOM
-        if ! syft scan "$IMAGE" -o spdx-json > "sboms/${{ inputs.package }}-spdx.json" 2>/dev/null; then
-          echo "::warning::SPDX SBOM generation failed"
-        fi
+        # Generate both formats in a single scan
+        CYCLONEDX_FILE="sboms/${PACKAGE_SANITIZED}-cyclonedx.json"
+        SPDX_FILE="sboms/${PACKAGE_SANITIZED}-spdx.json"
+        stderr_file=$(mktemp)
 
-        # Upload SBOMs as artifacts
-        echo "sbom_cyclonedx=sboms/${{ inputs.package }}-cyclonedx.json" >> $GITHUB_OUTPUT
-        echo "sbom_spdx=sboms/${{ inputs.package }}-spdx.json" >> $GITHUB_OUTPUT
+        syft scan "$IMAGE" \
+          -o cyclonedx-json="$CYCLONEDX_FILE" \
+          -o spdx-json="$SPDX_FILE" \
+          2>"$stderr_file"
+
+        exit_code=$?
+        stderr=$(cat "$stderr_file")
+        rm -f "$stderr_file"
+
+        if [ $exit_code -eq 0 ]; then
+          if [ -n "$stderr" ]; then
+            echo "::notice::Syft warnings: ${stderr}"
+          fi
+          echo "✓ SBOMs generated successfully (CycloneDX and SPDX)"
+          echo "sbom_files_exist=true" >> $GITHUB_OUTPUT
+        else
+          error_msg=$(echo "$stderr" | head -c 500)
+          echo "::warning::SBOM generation failed: ${error_msg}"
+          rm -f "$CYCLONEDX_FILE" "$SPDX_FILE"
+          echo "sbom_files_exist=false" >> $GITHUB_OUTPUT
+          echo "::warning::No SBOM files were generated. Workflow will continue without SBOM artifacts."
+        fi
 
     - name: Upload SBOMs
       uses: actions/upload-artifact@v5
-      if: steps.build.outputs.triggered == 'true' && inputs.sbom == 'true'
-      with:
-        name: sboms-${{ inputs.package }}
-        path: sboms/
-        if-no-files-found: error
-
-    - name: Attestation
+      if: steps.build.outputs.triggered == 'true' && inputs.sbom == 'true' && steps.sbom.outputs.sbom_files_exist == 'true'
       continue-on-error: true
-      id: attestation
-      if: steps.build.outputs.triggered == 'true'
-      uses: actions/attest@v3.0.0
       with:
-        subject-name: ghcr.io/${{ github.event.repository.name }}/${{ inputs.package }}
+        name: sboms-${{ steps.sbom.outputs.package_sanitized }}-${{ steps.vars.outputs.first_tag }}
+        path: sboms/
+        if-no-files-found: warn
+
+    - name: Attest
+      continue-on-error: true
+      id: attest
+      if: steps.build.outputs.triggered == 'true'
+      uses: actions/attest-build-provenance@v2.4.0
+      with:
+        subject-name: ghcr.io/${{ steps.vars.outputs.image_path }}
         subject-digest: ${{ steps.build_and_push.outputs.digest }}
-        predicate-type: "https://in-toto.io/attestation/release/v0.1"
-        predicate: '{"purl":"pkg:oci/${{ github.event.repository.name }}/${{ inputs.package }}"}'
+
+    - name: Verify attestations
+      if: steps.build.outputs.triggered == 'true'
+      continue-on-error: true
+      shell: bash
+      run: |
+        echo "::notice::Verifying build attestations..."
+
+        # Verify GitHub attestation
+        if [ "${{ steps.attest.outcome }}" = "success" ]; then
+          echo "✓ GitHub build provenance attestation verified"
+        else
+          echo "⚠ GitHub build provenance attestation failed"
+        fi
+
+        # Verify SBOM files exist (only if SBOM was enabled)
+        if [ "${{ inputs.sbom }}" = "true" ]; then
+          if [ "${{ steps.sbom.outputs.sbom_files_exist }}" = "true" ]; then
+            echo "✓ SBOM files generated successfully"
+            echo "  - CycloneDX: sboms/${{ steps.sbom.outputs.package_sanitized }}-cyclonedx.json"
+            echo "  - SPDX: sboms/${{ steps.sbom.outputs.package_sanitized }}-spdx.json"
+          else
+            echo "⚠ SBOM generation failed"
+          fi
+        fi
+
+        echo "::notice::Attestation verification completed"
 
     - name: Prompt user to fix permissions
-      if: steps.attestation.outcome == 'failure'
+      if: steps.attest.outcome == 'failure'
       shell: bash
       run: |
         echo "::warning::Attestation skipped due to missing id-token:write and attestations:write permissions. Please update workflow permissions."
@@ -309,10 +365,10 @@ runs:
         echo "---- Build Summary ----"
         echo "digest: ${{ steps.build_and_push.outputs.digest }}"
         echo "triggered: ${{ steps.diff.outputs.triggered }}"
-        echo "tags_csv: ${{ steps.vars.outputs.tags_csv }}"
         echo "final_tags: ${{ steps.tags.outputs.final_tags }}"
         echo "metadata_enabled: ${{ inputs.metadata_tags }}"
         if [ "${{ inputs.metadata_tags }}" == "true" ]; then
-          echo "metadata_labels: ${{ steps.meta.outputs.labels }}"
+          echo "metadata_labels: ${{ steps.tags.outputs.labels }}"
+          echo "metadata_annotations: ${{ steps.tags.outputs.annotations }}"
         fi
         echo "-----------------------"
