@@ -86,7 +86,7 @@ outputs:
 
   labels:
     description: "Generated OCI labels from metadata-action (only when metadata_tags is enabled)"
-    value: ${{ steps.meta.outputs.labels }}
+    value: ${{ steps.tags.outputs.labels }}
 
 runs:
   using: composite
@@ -204,7 +204,12 @@ runs:
         set -euo pipefail
         
         # Start with custom tags (convert from multiline to comma-separated)
-        custom_tags=$(echo "${{ inputs.tags }}" | grep -v '^$' | sed "s|^|ghcr.io/${{ steps.vars.outputs.image_path }}:|" | tr '[:upper:]' '[:lower:]' | paste -sd,)
+        # Handle empty inputs gracefully
+        if [ -n "${{ inputs.tags }}" ]; then
+          custom_tags=$(echo "${{ inputs.tags }}" | grep -v '^$' | sed "s|^|ghcr.io/${{ steps.vars.outputs.image_path }}:|" | tr '[:upper:]' '[:lower:]' | paste -sd,)
+        else
+          custom_tags=""
+        fi
         
         # If metadata tags are enabled, merge them
         if [ "${{ inputs.metadata_tags }}" == "true" ] && [ -n "${{ steps.meta.outputs.tags }}" ]; then

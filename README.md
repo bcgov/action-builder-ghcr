@@ -97,7 +97,7 @@ Only GitHub Container Registry (ghcr.io) is supported so far.
 
     # Custom tag rules for metadata-action (optional)
     # Only used when metadata_tags is enabled
-    # If not provided, reasonable defaults are used
+    # Tag rules are required when metadata_tags is enabled; no tags will be generated unless explicit rules are provided
     metadata_tag_rules: |
         type=ref,event=branch
         type=ref,event=pr
@@ -207,6 +207,7 @@ builds:
           type=ref,event=pr
           type=semver,pattern={{version}}
           type=semver,pattern={{major}}.{{minor}}
+          type=semver,pattern={{major}}
           type=sha
 ```
 
