@@ -203,6 +203,11 @@ runs:
       id: tags
       if: steps.build.outputs.triggered == 'true'
       shell: bash
+      env:
+        INPUT_TAGS: ${{ inputs.tags }}
+        META_TAGS: ${{ steps.meta.outputs.tags || '' }}
+        META_LABELS: ${{ steps.meta.outputs.labels || '' }}
+        META_ANNOTATIONS: ${{ steps.meta.outputs.annotations || '' }}
       run: |
         # Merge metadata tags with custom tags
         set -euo pipefail
@@ -210,19 +215,19 @@ runs:
         # Start with custom tags (convert from multiline to comma-separated)
         # Handle empty inputs gracefully
         custom_tags=""
-        if [ -n "${{ inputs.tags }}" ]; then
+        if [ -n "${INPUT_TAGS}" ]; then
           # Filter out empty lines and process tags; use printf to safely handle multiline input
-          filtered_tags=$(printf '%s\n' "${{ inputs.tags }}" | grep -v '^$' || true)
+          filtered_tags=$(printf '%s\n' "${INPUT_TAGS}" | grep -v '^$' || true)
           if [ -n "${filtered_tags}" ]; then
             custom_tags=$(printf '%s\n' "${filtered_tags}" | sed "s|^|ghcr.io/${{ steps.vars.outputs.image_path }}:|" | tr '[:upper:]' '[:lower:]' | paste -sd,)
           fi
         fi
         
         # If metadata tags are enabled, merge them
-        if [ "${{ inputs.metadata_tags }}" == "true" ] && [ -n "${{ steps.meta.outputs.tags }}" ]; then
+        if [ "${{ inputs.metadata_tags }}" == "true" ] && [ -n "${META_TAGS}" ]; then
           # Convert metadata tags from newline-separated to comma-separated
           # Use printf to safely handle multiline output from metadata-action
-          meta_tags=$(printf '%s\n' "${{ steps.meta.outputs.tags }}" | tr '\n' ',' | sed 's/,$//')
+          meta_tags=$(printf '%s\n' "${META_TAGS}" | tr '\n' ',' | sed 's/,$//')
           
           # Combine tags
           if [ -n "${custom_tags}" ]; then
@@ -232,8 +237,13 @@ runs:
           fi
           
           # Pass through labels and annotations from metadata-action
-          echo "labels=${{ steps.meta.outputs.labels }}" >> $GITHUB_OUTPUT
-          echo "annotations=${{ steps.meta.outputs.annotations }}" >> $GITHUB_OUTPUT
+          # Use heredoc to safely handle multiline/special characters
+          echo "labels<<EOF" >> $GITHUB_OUTPUT
+          echo "${META_LABELS}" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+          echo "annotations<<EOF" >> $GITHUB_OUTPUT
+          echo "${META_ANNOTATIONS}" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
         else
           final_tags="${custom_tags}"
           # Empty labels and annotations when metadata_tags is disabled
