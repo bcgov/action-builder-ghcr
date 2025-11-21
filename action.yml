@@ -55,6 +55,25 @@ inputs:
       Example: |
         MY_SECRET=secret_value
         ANOTHER_SECRET=another_value
+  metadata_tags:
+    default: "false"
+    description: |
+      Enable automatic tag and label generation using docker/metadata-action based on user-provided tag rules.
+      When enabled, generates tags and labels according to the rules specified in 'metadata_tag_rules'.
+      String value, not boolean. Set to 'true' to enable.
+  metadata_flavor:
+    description: |
+      Flavor configuration for metadata-action (e.g., 'latest=true').
+      Only used when metadata_tags is enabled.
+      See: https://github.com/docker/metadata-action#flavor-input
+  metadata_tag_rules:
+    description: |
+      Custom tag rules for metadata-action.
+      Only used when metadata_tags is enabled.
+      Example: |
+        type=ref,event=branch
+        type=semver,pattern={{version}}
+      See: https://github.com/docker/metadata-action#tags-input
 
 outputs:
   digest:
@@ -65,6 +84,14 @@ outputs:
     description: Did a deployment trigger?  [true|false]
     value: ${{ steps.diff.outputs.triggered }}
 
+  labels:
+    description: "Generated OCI labels from metadata-action (only when metadata_tags is enabled)"
+    value: ${{ steps.tags.outputs.labels }}
+
+  annotations:
+    description: "Generated OCI annotations from metadata-action (only when metadata_tags is enabled)"
+    value: ${{ steps.tags.outputs.annotations }}
+
 runs:
   using: composite
   steps:
@@ -73,6 +100,7 @@ runs:
       env:
         INPUT_PACKAGE: ${{ inputs.package }}
         CONTEXT_REPO: ${{ github.event.repository.name }}
+        INPUT_TAGS: ${{ inputs.tags }}
       run: |
         # Process inputs and set variables
         set -euo pipefail
@@ -90,17 +118,25 @@ runs:
           image_path="${{ github.repository }}/${{ inputs.package }}"
         fi
         echo "image_path=${image_path,,}" >> $GITHUB_OUTPUT
+        echo "image_name=ghcr.io/${image_path,,}" >> $GITHUB_OUTPUT
+
+        # Filter out empty lines from tags input (used for both metadata_tags and first_tag)
+        filtered_tags=$(printf '%s\n' "${INPUT_TAGS}" | grep -v '^$' || true)
 
         # Convert multiline tags to metadata-action format (type=raw,value=tag)
         # Each line becomes: type=raw,value=<tag>
-        metadata_tags=$(echo "${{ inputs.tags }}" | grep -v '^$' | tr '[:upper:]' '[:lower:]' | sed 's/^/type=raw,value=/')
-        echo "metadata_tags<<EOF" >> $GITHUB_OUTPUT
-        echo "$metadata_tags" >> $GITHUB_OUTPUT
-        echo "EOF" >> $GITHUB_OUTPUT
+        if [ -n "${filtered_tags}" ]; then
+          metadata_tags=$(printf '%s\n' "${filtered_tags}" | tr '[:upper:]' '[:lower:]' | sed 's/^/type=raw,value=/')
+          echo "metadata_tags<<EOF" >> $GITHUB_OUTPUT
+          echo "${metadata_tags}" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+        fi
 
         # Extract first tag for artifact naming (sanitized for artifact name compatibility)
         # Artifact names can contain: letters, numbers, hyphens, underscores, and periods
-        first_tag=$(echo "${{ inputs.tags }}" | grep -v '^$' | head -n 1 | tr '[:upper:]' '[:lower:]' | tr -cd '[:alnum:]._-')
+        if [ -n "${filtered_tags}" ]; then
+          first_tag=$(printf '%s\n' "${filtered_tags}" | head -n 1 | tr '[:upper:]' '[:lower:]' | tr -cd '[:alnum:]._-')
+        fi
         # Fallback to 'artifact' if sanitized tag is empty
         first_tag="${first_tag:-artifact}"
         echo "first_tag=${first_tag}" >> $GITHUB_OUTPUT
@@ -164,11 +200,80 @@ runs:
 
     - name: Prepare Container Metadata tags
       id: meta
-      if: steps.build.outputs.triggered == 'true'
+      if: steps.build.outputs.triggered == 'true' && inputs.metadata_tags == 'true'
       uses: docker/metadata-action@318604b99e75e41977312d83839a89be02ca4893 # v5
       with:
-        images: ghcr.io/${{ steps.vars.outputs.image_path }}
-        tags: ${{ steps.vars.outputs.metadata_tags }}
+        images: ${{ steps.vars.outputs.image_name }}
+        flavor: ${{ inputs.metadata_flavor }}
+        tags: ${{ inputs.metadata_tag_rules }}
+
+    - name: Merge tags
+      id: tags
+      if: steps.build.outputs.triggered == 'true'
+      shell: bash
+      env:
+        INPUT_TAGS: ${{ inputs.tags }}
+        META_TAGS: ${{ steps.meta.outputs.tags || '' }}
+        META_LABELS: ${{ steps.meta.outputs.labels || '' }}
+        META_ANNOTATIONS: ${{ steps.meta.outputs.annotations || '' }}
+      run: |
+        # Merge metadata tags with custom tags
+        set -euo pipefail
+
+        # Start with custom tags (convert from multiline to comma-separated)
+        # Handle empty inputs gracefully
+        custom_tags=""
+        if [ -n "${INPUT_TAGS}" ]; then
+          # Filter out empty lines and process tags; use printf to safely handle multiline input
+          filtered_tags=$(printf '%s\n' "${INPUT_TAGS}" | grep -v '^$' || true)
+          if [ -n "${filtered_tags}" ]; then
+            custom_tags=$(printf '%s\n' "${filtered_tags}" | sed "s|^|ghcr.io/${{ steps.vars.outputs.image_path }}:|" | tr '[:upper:]' '[:lower:]' | paste -sd,)
+          fi
+        fi
+
+        # If metadata tags are enabled, merge them
+        if [ "${{ inputs.metadata_tags }}" == "true" ]; then
+          # Convert metadata tags from newline-separated to comma-separated (if any)
+          # Use printf to safely handle multiline output from metadata-action
+          meta_tags=""
+          if [ -n "${META_TAGS}" ]; then
+            meta_tags=$(printf '%s\n' "${META_TAGS}" | tr '\n' ',' | sed 's/,$//')
+          fi
+          
+          # Combine tags (prefer custom tags first, then metadata tags)
+          if [ -n "${custom_tags}" ] && [ -n "${meta_tags}" ]; then
+            final_tags="${custom_tags},${meta_tags}"
+          elif [ -n "${meta_tags}" ]; then
+            final_tags="${meta_tags}"
+          else
+            final_tags="${custom_tags}"
+          fi
+          
+          # Pass through labels and annotations from metadata-action (even if no tags were generated)
+          # Use heredoc to safely handle multiline/special characters
+          echo "labels<<EOF" >> $GITHUB_OUTPUT
+          echo "${META_LABELS}" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+          echo "annotations<<EOF" >> $GITHUB_OUTPUT
+          echo "${META_ANNOTATIONS}" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+        else
+          final_tags="${custom_tags}"
+          # Empty labels and annotations when metadata_tags is disabled
+          echo "labels=" >> $GITHUB_OUTPUT
+          echo "annotations=" >> $GITHUB_OUTPUT
+        fi
+
+        # Ensure at least one tag is present; fallback to :latest if empty
+        if [ -z "${final_tags}" ]; then
+          # Warn if metadata_tags is enabled but no tags were generated (likely configuration error)
+          if [ "${{ inputs.metadata_tags }}" == "true" ]; then
+            echo "::warning::metadata_tags is enabled but no tags were generated. This may indicate missing or invalid metadata_tag_rules. Falling back to :latest tag."
+          fi
+          final_tags="ghcr.io/${{ steps.vars.outputs.image_path }}:latest"
+        fi
+
+        echo "final_tags=${final_tags}" >> $GITHUB_OUTPUT
 
     - name: Build and push ${{ inputs.package }} Docker image
       id: build_and_push
@@ -178,9 +283,9 @@ runs:
         context: ${{ inputs.build_context || inputs.package }}
         file: ${{ inputs.build_file || format('{0}/Dockerfile', inputs.package) }}
         push: true
-        tags: ${{ steps.meta.outputs.tags }}
-        labels: ${{ steps.meta.outputs.labels }}
-        annotations: ${{ steps.meta.outputs.annotations }}
+        tags: ${{ steps.tags.outputs.final_tags }}
+        labels: ${{ steps.tags.outputs.labels }}
+        annotations: ${{ steps.tags.outputs.annotations }}
         cache-from: type=gha
         cache-to: type=gha,mode=max
         build-args: ${{ inputs.build_args }}
@@ -305,5 +410,10 @@ runs:
         echo "---- Build Summary ----"
         echo "digest: ${{ steps.build_and_push.outputs.digest }}"
         echo "triggered: ${{ steps.diff.outputs.triggered }}"
-        echo "tags: ${{ steps.meta.outputs.tags }}"
+        echo "final_tags: ${{ steps.tags.outputs.final_tags }}"
+        echo "metadata_enabled: ${{ inputs.metadata_tags }}"
+        if [ "${{ inputs.metadata_tags }}" == "true" ]; then
+          echo "metadata_labels: ${{ steps.tags.outputs.labels }}"
+          echo "metadata_annotations: ${{ steps.tags.outputs.annotations }}"
+        fi
         echo "-----------------------"
