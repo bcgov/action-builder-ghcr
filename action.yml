@@ -88,6 +88,10 @@ outputs:
     description: "Generated OCI labels from metadata-action (only when metadata_tags is enabled)"
     value: ${{ steps.tags.outputs.labels }}
 
+  annotations:
+    description: "Generated OCI annotations from metadata-action (only when metadata_tags is enabled)"
+    value: ${{ steps.tags.outputs.annotations }}
+
 runs:
   using: composite
   steps:
@@ -207,8 +211,11 @@ runs:
         # Handle empty inputs gracefully
         custom_tags=""
         if [ -n "${{ inputs.tags }}" ]; then
-          # Filter out empty lines and process tags; use || true to handle empty results
-          filtered_tags=$(echo "${{ inputs.tags }}" | grep -v '^$' || true)
+          # Filter out empty lines and process tags; use here-doc to safely handle multiline input
+          filtered_tags=$(grep -v '^$' <<EOF || true
+${{ inputs.tags }}
+EOF
+)
           if [ -n "${filtered_tags}" ]; then
             custom_tags=$(echo "${filtered_tags}" | sed "s|^|ghcr.io/${{ steps.vars.outputs.image_path }}:|" | tr '[:upper:]' '[:lower:]' | paste -sd,)
           fi
@@ -217,7 +224,11 @@ runs:
         # If metadata tags are enabled, merge them
         if [ "${{ inputs.metadata_tags }}" == "true" ] && [ -n "${{ steps.meta.outputs.tags }}" ]; then
           # Convert metadata tags from newline-separated to comma-separated
-          meta_tags=$(echo "${{ steps.meta.outputs.tags }}" | tr '\n' ',' | sed 's/,$//')
+          # Use here-doc to safely handle multiline output from metadata-action
+          meta_tags=$(tr '\n' ',' <<EOF | sed 's/,$//'
+${{ steps.meta.outputs.tags }}
+EOF
+)
           
           # Combine tags
           if [ -n "${custom_tags}" ]; then
@@ -238,6 +249,10 @@ runs:
         
         # Ensure at least one tag is present; fallback to :latest if empty
         if [ -z "${final_tags}" ]; then
+          # Warn if metadata_tags is enabled but no tags were generated (likely configuration error)
+          if [ "${{ inputs.metadata_tags }}" == "true" ]; then
+            echo "::warning::metadata_tags is enabled but no tags were generated. This may indicate missing or invalid metadata_tag_rules. Falling back to :latest tag."
+          fi
           final_tags="ghcr.io/${{ steps.vars.outputs.image_path }}:latest"
         fi
         
