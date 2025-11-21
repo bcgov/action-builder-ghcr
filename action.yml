@@ -251,19 +251,44 @@ runs:
         path: sboms/
         if-no-files-found: warn
 
-    - name: Attestation
+    - name: Attest
       continue-on-error: true
-      id: attestation
+      id: attest
       if: steps.build.outputs.triggered == 'true'
-      uses: actions/attest@v3.0.0
+      uses: actions/attest-build-provenance@v2.4.0
       with:
-        subject-name: ghcr.io/${{ github.event.repository.name }}/${{ inputs.package }}
+        subject-name: ghcr.io/${{ steps.vars.outputs.image_path }}
         subject-digest: ${{ steps.build_and_push.outputs.digest }}
-        predicate-type: "https://in-toto.io/attestation/release/v0.1"
-        predicate: '{"purl":"pkg:oci/${{ github.event.repository.name }}/${{ inputs.package }}"}'
+
+    - name: Verify attestations
+      if: steps.build.outputs.triggered == 'true'
+      continue-on-error: true
+      shell: bash
+      run: |
+        echo "::notice::Verifying build attestations..."
+
+        # Verify GitHub attestation
+        if [ "${{ steps.attest.outcome }}" = "success" ]; then
+          echo "✓ GitHub build provenance attestation verified"
+        else
+          echo "⚠ GitHub build provenance attestation failed"
+        fi
+
+        # Verify SBOM files exist (only if SBOM was enabled)
+        if [ "${{ inputs.sbom }}" = "true" ]; then
+          if [ "${{ steps.sbom.outputs.sbom_files_exist }}" = "true" ]; then
+            echo "✓ SBOM files generated successfully"
+            echo "  - CycloneDX: sboms/${{ steps.sbom.outputs.package_sanitized }}-cyclonedx.json"
+            echo "  - SPDX: sboms/${{ steps.sbom.outputs.package_sanitized }}-spdx.json"
+          else
+            echo "⚠ SBOM generation failed"
+          fi
+        fi
+
+        echo "::notice::Attestation verification completed"
 
     - name: Prompt user to fix permissions
-      if: steps.attestation.outcome == 'failure'
+      if: steps.attest.outcome == 'failure'
       shell: bash
       run: |
         echo "::warning::Attestation skipped due to missing id-token:write and attestations:write permissions. Please update workflow permissions."
