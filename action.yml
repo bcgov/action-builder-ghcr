@@ -257,7 +257,7 @@ runs:
       if: steps.build.outputs.triggered == 'true'
       uses: actions/attest-build-provenance@v2.4.0
       with:
-        subject-name: ghcr.io/${{ github.event.repository.name }}/${{ inputs.package }}
+        subject-name: ghcr.io/${{ steps.vars.outputs.image_path }}
         subject-digest: ${{ steps.build_and_push.outputs.digest }}
 
     - name: Verify attestations
