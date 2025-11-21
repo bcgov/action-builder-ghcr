@@ -58,8 +58,8 @@ inputs:
   metadata_tags:
     default: "false"
     description: |
-      Enable automatic tag and label generation using docker/metadata-action.
-      When enabled, generates tags based on branch names, semver tags, SHAs, and PR numbers.
+      Enable automatic tag and label generation using docker/metadata-action based on user-provided tag rules.
+      When enabled, generates tags and labels according to the rules specified in 'metadata_tag_rules'.
       String value, not boolean. Set to 'true' to enable.
   metadata_flavor:
     description: |
@@ -224,19 +224,24 @@ runs:
         fi
         
         # If metadata tags are enabled, merge them
-        if [ "${{ inputs.metadata_tags }}" == "true" ] && [ -n "${META_TAGS}" ]; then
-          # Convert metadata tags from newline-separated to comma-separated
+        if [ "${{ inputs.metadata_tags }}" == "true" ]; then
+          # Convert metadata tags from newline-separated to comma-separated (if any)
           # Use printf to safely handle multiline output from metadata-action
-          meta_tags=$(printf '%s\n' "${META_TAGS}" | tr '\n' ',' | sed 's/,$//')
-          
-          # Combine tags
-          if [ -n "${custom_tags}" ]; then
-            final_tags="${custom_tags},${meta_tags}"
+          if [ -n "${META_TAGS}" ]; then
+            meta_tags=$(printf '%s\n' "${META_TAGS}" | tr '\n' ',' | sed 's/,$//')
+            
+            # Combine tags
+            if [ -n "${custom_tags}" ]; then
+              final_tags="${custom_tags},${meta_tags}"
+            else
+              final_tags="${meta_tags}"
+            fi
           else
-            final_tags="${meta_tags}"
+            # No metadata tags generated, use custom tags only
+            final_tags="${custom_tags}"
           fi
           
-          # Pass through labels and annotations from metadata-action
+          # Pass through labels and annotations from metadata-action (even if no tags were generated)
           # Use heredoc to safely handle multiline/special characters
           echo "labels<<EOF" >> $GITHUB_OUTPUT
           echo "${META_LABELS}" >> $GITHUB_OUTPUT
