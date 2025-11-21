@@ -163,7 +163,7 @@ builds:
 
 # Security Features
 
-This action provides two key security features: Container Attestations and Software Bill of Materials (SBOM) generation. Additionally, it leverages the `docker/metadata-action` for best-practice container image tagging and labeling.
+This action provides two key security features: Container Attestations and Software Bill of Materials (SBOM) generation. Additionally, it uses the `docker/metadata-action` for best-practice container image tagging and labeling.
 
 ## Container Metadata and Labeling
 
