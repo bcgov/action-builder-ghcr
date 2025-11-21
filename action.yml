@@ -205,10 +205,13 @@ runs:
         
         # Start with custom tags (convert from multiline to comma-separated)
         # Handle empty inputs gracefully
+        custom_tags=""
         if [ -n "${{ inputs.tags }}" ]; then
-          custom_tags=$(echo "${{ inputs.tags }}" | grep -v '^$' | sed "s|^|ghcr.io/${{ steps.vars.outputs.image_path }}:|" | tr '[:upper:]' '[:lower:]' | paste -sd,)
-        else
-          custom_tags=""
+          # Filter out empty lines and process tags; use || true to handle empty results
+          filtered_tags=$(echo "${{ inputs.tags }}" | grep -v '^$' || true)
+          if [ -n "${filtered_tags}" ]; then
+            custom_tags=$(echo "${filtered_tags}" | sed "s|^|ghcr.io/${{ steps.vars.outputs.image_path }}:|" | tr '[:upper:]' '[:lower:]' | paste -sd,)
+          fi
         fi
         
         # If metadata tags are enabled, merge them
@@ -231,6 +234,11 @@ runs:
           # Empty labels and annotations when metadata_tags is disabled
           echo "labels=" >> $GITHUB_OUTPUT
           echo "annotations=" >> $GITHUB_OUTPUT
+        fi
+        
+        # Ensure at least one tag is present; fallback to :latest if empty
+        if [ -z "${final_tags}" ]; then
+          final_tags="ghcr.io/${{ steps.vars.outputs.image_path }}:latest"
         fi
         
         echo "final_tags=${final_tags}" >> $GITHUB_OUTPUT
