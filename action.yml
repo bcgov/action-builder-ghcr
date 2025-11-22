@@ -360,7 +360,7 @@ runs:
       continue-on-error: true
       id: attest
       if: steps.build.outputs.triggered == 'true'
-      uses: actions/attest-build-provenance@v2.4.0
+      uses: actions/attest-build-provenance@v3.0.0
       with:
         subject-name: ghcr.io/${{ steps.vars.outputs.image_path }}
         subject-digest: ${{ steps.build_and_push.outputs.digest }}
