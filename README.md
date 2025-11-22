@@ -85,6 +85,27 @@ Only GitHub Container Registry (ghcr.io) is supported so far.
         MY_SECRET=${{ secrets.MY_SECRET }}
         ANOTHER_SECRET=${{ secrets.ANOTHER_SECRET }}
 
+    # Enable automatic tag and label generation using docker/metadata-action
+    # String value, not boolean. Defaults to 'false'
+    # When enabled, generates tags according to the rules specified in metadata_tag_rules (e.g., branch names, semver tags, SHAs, PR numbers, if configured)
+    metadata_tags: 'true'
+
+    # Flavor configuration for metadata-action (optional)
+    # Only used when metadata_tags is enabled
+    metadata_flavor: |
+        latest=true
+
+    # Custom tag rules for metadata-action (optional)
+    # Only used when metadata_tags is enabled
+    # Tag rules are required when metadata_tags is enabled; no tags will be generated unless explicit rules are provided
+    metadata_tag_rules: |
+        type=ref,event=branch
+        type=ref,event=pr
+        type=semver,pattern={{version}}
+        type=semver,pattern={{major}}.{{minor}}
+        type=semver,pattern={{major}}
+        type=sha
+
     ### Deprecated
 
     # Single-value tag input has been deprecated and will be removed in a future release
@@ -161,9 +182,83 @@ builds:
 
 ```
 
+# Example, Metadata Tags for Automatic Tagging
+
+Use docker/metadata-action to automatically generate tags and labels according to user-provided tag rules (e.g., branch names, semantic versions, PRs, and commit SHAs, if configured).
+
+```yaml
+builds:
+  runs-on: ubuntu-24.04
+  steps:
+    - name: Builds with Metadata Tags
+      uses: bcgov/action-builder-ghcr@vX.Y.Z
+      with:
+        package: frontend
+        tag_fallback: test
+        triggers: ('frontend/')
+        # Enable metadata-action integration
+        metadata_tags: 'true'
+        # Configure automatic 'latest' tag
+        metadata_flavor: |
+          latest=true
+        # Define tagging rules
+        metadata_tag_rules: |
+          type=ref,event=branch
+          type=ref,event=pr
+          type=semver,pattern={{version}}
+          type=semver,pattern={{major}}.{{minor}}
+          type=semver,pattern={{major}}
+          type=sha
+```
+
+This will generate tags like:
+- For branch pushes: `main`, `develop`, etc.
+- For PRs: `pr-123`
+- For semver tags: `v1.2.3`, `1.2`, `1`, `latest`
+- For all commits: `sha-abc1234`
+
 # Security Features
 
-This action provides two key security features: Container Attestations and Software Bill of Materials (SBOM) generation.
+This action provides two key security features: Container Attestations and Software Bill of Materials (SBOM) generation. Additionally, it leverages the `docker/metadata-action` for best-practice container image tagging and labeling.
+
+## Container Metadata and Labeling
+
+This action uses the [`docker/metadata-action`](https://github.com/docker/metadata-action) to automatically generate OCI-compliant labels and annotations for container images. This ensures that images are tagged and labeled following [Open Container Initiative (OCI) specifications](https://specs.opencontainers.org/image-spec/annotations/) and Docker best practices.
+
+The following [OCI Image Format Specification](https://github.com/opencontainers/image-spec/blob/main/annotations.md) labels are automatically added to all container images:
+
+- **org.opencontainers.image.created** - Image creation timestamp (ISO 8601 format)
+- **org.opencontainers.image.url** - URL to the source repository (e.g., https://github.com/bcgov/repo-name)
+- **org.opencontainers.image.source** - URL to the source repository
+- **org.opencontainers.image.version** - Version/tag of the image (e.g., main, pr-123)
+- **org.opencontainers.image.revision** - Git commit SHA that triggered the build
+- **org.opencontainers.image.title** - Human-readable title (repository name)
+- **org.opencontainers.image.description** - Description from the repository
+- **org.opencontainers.image.licenses** - License information from the repository's LICENSE file
+
+These labels provide standardized metadata for source provenance, attestation, and help ensure baseline security practices for container deployments.
+
+### Example OCI Labels
+
+Here's an example of the OCI labels that would be applied to a container image built with this action:
+
+```json
+{
+  "org.opencontainers.image.created": "2025-05-29T19:09:03.374Z",
+  "org.opencontainers.image.url": "https://github.com/bcgov/nr-peach",
+  "org.opencontainers.image.source": "https://github.com/bcgov/nr-peach",
+  "org.opencontainers.image.version": "main",
+  "org.opencontainers.image.revision": "fadf03ce2db919752ada03af3f8fb4895fe96fcf",
+  "org.opencontainers.image.title": "nr-peach",
+  "org.opencontainers.image.description": "NR Permitting Exchange, Aggregation and Collection Hub",
+  "org.opencontainers.image.licenses": "Apache-2.0"
+}
+```
+
+You can inspect these labels on any built image using:
+```bash
+docker inspect ghcr.io/org/repo/package:tag | jq '.[0].Config.Labels'
+```
 
 ## Container Attestations
 
@@ -201,6 +296,9 @@ Two SBOM formats are generated and uploaded as workflow artifacts:
 |------------|---------------------------------------------|
 | `digest`   | Digest of the built or retagged image       |
 | `triggered`| Whether a build was triggered (`true/false`)|
+| `labels`   | OCI labels generated by metadata-action (when metadata_tags is enabled) |
+| `annotations` | OCI annotations generated by metadata-action (when metadata_tags is enabled) |
+| `labels`   | OCI labels generated by metadata-action (when enabled) |
 
 New image digest (SHA).  This applies to build and retags.
 
