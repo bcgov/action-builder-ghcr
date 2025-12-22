@@ -348,7 +348,7 @@ runs:
         fi
 
     - name: Upload SBOMs
-      uses: actions/upload-artifact@v5
+      uses: actions/upload-artifact@v6
       if: steps.build.outputs.triggered == 'true' && inputs.sbom == 'true' && steps.sbom.outputs.sbom_files_exist == 'true'
       continue-on-error: true
       with:
