@@ -141,12 +141,43 @@ runs:
         first_tag="${first_tag:-artifact}"
         echo "first_tag=${first_tag}" >> $GITHUB_OUTPUT
 
+    # Detect fork PR for trigger evaluation
+    - id: fork_detect
+      shell: bash
+      run: |
+        set -euo pipefail
+        
+        # Detect fork PR in pull_request_target context
+        is_fork_pr=false
+        if [ "${{ github.event_name }}" == "pull_request_target" ]; then
+          if [ "${{ github.event.pull_request.head.repo.full_name }}" != "${{ github.repository }}" ]; then
+            is_fork_pr=true
+            echo "fork_repo=${{ github.event.pull_request.head.repo.full_name }}" >> $GITHUB_OUTPUT
+            echo "fork_ref=${{ github.event.pull_request.head.sha }}" >> $GITHUB_OUTPUT
+          fi
+        fi
+        echo "is_fork_pr=${is_fork_pr}" >> $GITHUB_OUTPUT
+
+    # Debug fork detection (for testing/validation)
+    - name: Debug fork detection
+      if: always()
+      shell: bash
+      run: |
+        echo "::notice::Event name: ${{ github.event_name }}"
+        echo "::notice::Base repo: ${{ github.repository }}"
+        echo "::notice::Head repo: ${{ github.event.pull_request.head.repo.full_name || 'N/A (not a PR event)' }}"
+        echo "::notice::Is fork PR: ${{ steps.fork_detect.outputs.is_fork_pr }}"
+        echo "::notice::Fork repo: ${{ steps.fork_detect.outputs.fork_repo || 'N/A' }}"
+        echo "::notice::Fork ref: ${{ steps.fork_detect.outputs.fork_ref || 'N/A' }}"
+
     # Send triggers to diff action
     - id: diff
       uses: bcgov/action-diff-triggers@0d193029efd26c76aeacaa84aba3328de8198370 # v0.2.0
       with:
         triggers: ${{ inputs.triggers }}
         diff_branch: ${{ inputs.diff_branch }}
+        repository: ${{ steps.fork_detect.outputs.fork_repo }}
+        ref: ${{ steps.fork_detect.outputs.fork_ref }}
 
     # Check if a build is required (steps.build.outputs.triggered=true|false)
     - name: Check for builds
@@ -170,6 +201,15 @@ runs:
           triggered=false
         fi
         echo "triggered=$triggered" >> $GITHUB_OUTPUT
+
+    # Log in to GHCR for retag operations
+    - name: Log in to the Container registry (for retag)
+      if: steps.build.outputs.triggered != 'true'
+      uses: docker/login-action@v3
+      with:
+        registry: ghcr.io
+        username: ${{ github.actor }}
+        password: ${{ inputs.token }}
 
     # If a build is not required, reuse a previous image
     - name: Recycle/retag Previous Images
