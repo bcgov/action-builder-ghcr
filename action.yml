@@ -160,7 +160,7 @@ runs:
 
     # Debug fork detection (for testing/validation)
     - name: Debug fork detection
-      if: always()
+      if: github.event_name == 'pull_request' || github.event_name == 'pull_request_target'
       shell: bash
       run: |
         echo "::notice::Event name: ${{ github.event_name }}"
@@ -170,14 +170,26 @@ runs:
         echo "::notice::Fork repo: ${{ steps.fork_detect.outputs.fork_repo || 'N/A' }}"
         echo "::notice::Fork ref: ${{ steps.fork_detect.outputs.fork_ref || 'N/A' }}"
 
+    # Prepare diff-triggers inputs conditionally
+    - id: diff_inputs
+      shell: bash
+      run: |
+        if [ "${{ steps.fork_detect.outputs.is_fork_pr }}" == "true" ]; then
+          echo "repository=${{ steps.fork_detect.outputs.fork_repo }}" >> $GITHUB_OUTPUT
+          echo "ref=${{ steps.fork_detect.outputs.fork_ref }}" >> $GITHUB_OUTPUT
+        else
+          echo "repository=" >> $GITHUB_OUTPUT
+          echo "ref=" >> $GITHUB_OUTPUT
+        fi
+
     # Send triggers to diff action
     - id: diff
       uses: bcgov/action-diff-triggers@0d193029efd26c76aeacaa84aba3328de8198370 # v0.2.0
       with:
         triggers: ${{ inputs.triggers }}
         diff_branch: ${{ inputs.diff_branch }}
-        repository: ${{ steps.fork_detect.outputs.fork_repo }}
-        ref: ${{ steps.fork_detect.outputs.fork_ref }}
+        repository: ${{ steps.diff_inputs.outputs.repository }}
+        ref: ${{ steps.diff_inputs.outputs.ref }}
 
     # Check if a build is required (steps.build.outputs.triggered=true|false)
     - name: Check for builds
