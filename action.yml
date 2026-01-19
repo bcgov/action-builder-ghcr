@@ -82,7 +82,7 @@ outputs:
 
   triggered:
     description: Did a deployment trigger?  [true|false]
-    value: ${{ steps.diff.outputs.triggered }}
+    value: ${{ steps.context_check.outputs.skip == 'true' && 'false' || steps.diff.outputs.triggered }}
 
   labels:
     description: "Generated OCI labels from metadata-action (only when metadata_tags is enabled)"
@@ -95,7 +95,27 @@ outputs:
 runs:
   using: composite
   steps:
+    # Skip redundant runs when both pull_request and pull_request_target are configured
+    # Only skip pull_request_target for same-repo PRs (pull_request handles those)
+    # This allows consumers to simply add both triggers without complex conditionals
+    - id: context_check
+      shell: bash
+      run: |
+        # Check for redundant event context
+        EVENT="${{ github.event_name }}"
+        HEAD_REPO="${{ github.event.pull_request.head.repo.full_name }}"
+        BASE_REPO="${{ github.repository }}"
+
+        if [[ "$EVENT" == "pull_request_target" && "$HEAD_REPO" == "$BASE_REPO" ]]; then
+          echo "Skipping: pull_request_target for same-repo PR (pull_request handles this)"
+          echo "skip=true" >> $GITHUB_OUTPUT
+          exit 0
+        fi
+
+        echo "skip=false" >> $GITHUB_OUTPUT
+
     - id: vars
+      if: steps.context_check.outputs.skip != 'true'
       shell: bash
       env:
         INPUT_PACKAGE: ${{ inputs.package }}
@@ -144,7 +164,7 @@ runs:
     # Send triggers to diff action (handles fork PRs automatically in v1.0.0+)
     # Skip for external repo builds - diff makes no sense when building a different repo
     - id: diff
-      if: inputs.repository == github.repository
+      if: steps.context_check.outputs.skip != 'true' && inputs.repository == github.repository
       uses: bcgov/action-diff-triggers@v1.0.0
       with:
         triggers: ${{ inputs.triggers }}
@@ -152,6 +172,7 @@ runs:
 
     # Check if a build is required (steps.build.outputs.triggered=true|false)
     - name: Check for builds
+      if: steps.context_check.outputs.skip != 'true'
       env:
         URL_FALLBACK: ghcr.io/${{ steps.vars.outputs.image_path }}:${{ inputs.tag_fallback }}
       id: build
@@ -175,7 +196,7 @@ runs:
 
     # Log in to GHCR for retag operations
     - name: Log in to the Container registry (for retag)
-      if: steps.build.outputs.triggered != 'true'
+      if: steps.context_check.outputs.skip != 'true' && steps.build.outputs.triggered != 'true'
       uses: docker/login-action@v3
       with:
         registry: ghcr.io
@@ -185,7 +206,7 @@ runs:
     # If a build is not required, reuse a previous image
     - name: Recycle/retag Previous Images
       uses: shrink/actions-docker-registry-tag@f04afd0559f66b288586792eb150f45136a927fa # v4
-      if: steps.build.outputs.triggered != 'true'
+      if: steps.context_check.outputs.skip != 'true' && steps.build.outputs.triggered != 'true'
       with:
         registry: ghcr.io
         repository: ${{ steps.vars.outputs.image_path }}
@@ -198,16 +219,17 @@ runs:
     # For PR events on same repo: checkout PR head (supports fork PRs)
     # For other events: checkout inputs.repository (defaults to github.repository)
     - uses: actions/checkout@v6
+      if: steps.context_check.outputs.skip != 'true'
       with:
         repository: ${{ inputs.repository != github.repository && inputs.repository || github.event.pull_request.head.repo.full_name || inputs.repository }}
         ref: ${{ inputs.repository != github.repository && '' || github.event.pull_request.head.sha || '' }}
 
     - name: Set up Docker Buildx
-      if: steps.build.outputs.triggered == 'true'
+      if: steps.context_check.outputs.skip != 'true' && steps.build.outputs.triggered == 'true'
       uses: docker/setup-buildx-action@v3
 
     - name: Log in to the Container registry
-      if: steps.build.outputs.triggered == 'true'
+      if: steps.context_check.outputs.skip != 'true' && steps.build.outputs.triggered == 'true'
       uses: docker/login-action@v3
       with:
         registry: ghcr.io
@@ -216,7 +238,7 @@ runs:
 
     - name: Prepare Container Metadata tags
       id: meta
-      if: steps.build.outputs.triggered == 'true' && inputs.metadata_tags == 'true'
+      if: steps.context_check.outputs.skip != 'true' && steps.build.outputs.triggered == 'true' && inputs.metadata_tags == 'true'
       uses: docker/metadata-action@c299e40c65443455700f0fdfc63efafe5b349051 # v5
       with:
         images: ${{ steps.vars.outputs.image_name }}
@@ -225,7 +247,7 @@ runs:
 
     - name: Merge tags
       id: tags
-      if: steps.build.outputs.triggered == 'true'
+      if: steps.context_check.outputs.skip != 'true' && steps.build.outputs.triggered == 'true'
       shell: bash
       env:
         INPUT_TAGS: ${{ inputs.tags }}
@@ -293,7 +315,7 @@ runs:
 
     - name: Build and push ${{ inputs.package }} Docker image
       id: build_and_push
-      if: steps.build.outputs.triggered == 'true'
+      if: steps.context_check.outputs.skip != 'true' && steps.build.outputs.triggered == 'true'
       uses: docker/build-push-action@v6
       with:
         context: ${{ inputs.build_context || inputs.package }}
@@ -308,7 +330,7 @@ runs:
         secrets: ${{ inputs.secrets }}
 
     - name: Install Syft
-      if: steps.build.outputs.triggered == 'true' && inputs.sbom == 'true'
+      if: steps.context_check.outputs.skip != 'true' && steps.build.outputs.triggered == 'true' && inputs.sbom == 'true'
       shell: bash
       run: |
         # Install Syft
@@ -316,7 +338,7 @@ runs:
 
     - name: Generate SBOM
       id: sbom
-      if: steps.build.outputs.triggered == 'true' && inputs.sbom == 'true'
+      if: steps.context_check.outputs.skip != 'true' && steps.build.outputs.triggered == 'true' && inputs.sbom == 'true'
       continue-on-error: true
       shell: bash
       run: |
@@ -365,7 +387,7 @@ runs:
 
     - name: Upload SBOMs
       uses: actions/upload-artifact@v6
-      if: steps.build.outputs.triggered == 'true' && inputs.sbom == 'true' && steps.sbom.outputs.sbom_files_exist == 'true'
+      if: steps.context_check.outputs.skip != 'true' && steps.build.outputs.triggered == 'true' && inputs.sbom == 'true' && steps.sbom.outputs.sbom_files_exist == 'true'
       continue-on-error: true
       with:
         name: sboms-${{ steps.sbom.outputs.package_sanitized }}-${{ steps.vars.outputs.first_tag }}
@@ -375,14 +397,14 @@ runs:
     - name: Attest
       continue-on-error: true
       id: attest
-      if: steps.build.outputs.triggered == 'true'
+      if: steps.context_check.outputs.skip != 'true' && steps.build.outputs.triggered == 'true'
       uses: actions/attest-build-provenance@v3.1.0
       with:
         subject-name: ghcr.io/${{ steps.vars.outputs.image_path }}
         subject-digest: ${{ steps.build_and_push.outputs.digest }}
 
     - name: Verify attestations
-      if: steps.build.outputs.triggered == 'true'
+      if: steps.context_check.outputs.skip != 'true' && steps.build.outputs.triggered == 'true'
       continue-on-error: true
       shell: bash
       run: |
@@ -409,7 +431,7 @@ runs:
         echo "::notice::Attestation verification completed"
 
     - name: Prompt user to fix permissions
-      if: steps.attest.outcome == 'failure'
+      if: steps.context_check.outputs.skip != 'true' && steps.attest.outcome == 'failure'
       shell: bash
       run: |
         echo "::warning::Attestation skipped due to missing id-token:write and attestations:write permissions. Please update workflow permissions."
@@ -417,7 +439,7 @@ runs:
     # Action repo needs to be present for cleanup/tests
     # Re-checkout base repo after building from fork or different repo
     - name: Checkout local repo to make sure action.yml is present
-      if: github.event.pull_request.head.repo.full_name != github.repository || github.repository != inputs.repository || failure()
+      if: steps.context_check.outputs.skip != 'true' && (github.event.pull_request.head.repo.full_name != github.repository || github.repository != inputs.repository || failure())
       uses: actions/checkout@v6
 
     - name: Print summary outputs
@@ -425,12 +447,17 @@ runs:
       shell: bash
       run: |
         echo "---- Build Summary ----"
-        echo "digest: ${{ steps.build_and_push.outputs.digest }}"
-        echo "triggered: ${{ steps.diff.outputs.triggered }}"
-        echo "final_tags: ${{ steps.tags.outputs.final_tags }}"
-        echo "metadata_enabled: ${{ inputs.metadata_tags }}"
-        if [ "${{ inputs.metadata_tags }}" == "true" ]; then
-          echo "metadata_labels: ${{ steps.tags.outputs.labels }}"
-          echo "metadata_annotations: ${{ steps.tags.outputs.annotations }}"
+        if [ "${{ steps.context_check.outputs.skip }}" == "true" ]; then
+          echo "status: SKIPPED (redundant pull_request_target for same-repo PR)"
+          echo "triggered: false"
+        else
+          echo "digest: ${{ steps.build_and_push.outputs.digest }}"
+          echo "triggered: ${{ steps.diff.outputs.triggered }}"
+          echo "final_tags: ${{ steps.tags.outputs.final_tags }}"
+          echo "metadata_enabled: ${{ inputs.metadata_tags }}"
+          if [ "${{ inputs.metadata_tags }}" == "true" ]; then
+            echo "metadata_labels: ${{ steps.tags.outputs.labels }}"
+            echo "metadata_annotations: ${{ steps.tags.outputs.annotations }}"
+          fi
         fi
         echo "-----------------------"

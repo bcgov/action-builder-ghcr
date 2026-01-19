@@ -18,37 +18,26 @@ jobs:
   build:
     name: Build
     runs-on: ubuntu-24.04
-    # Skip pull_request_target for same-repo PRs (pull_request handles those)
-    # Skip pull_request for fork PRs (pull_request_target handles those)
-    if: |
-      (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository) ||
-      (github.event_name == 'pull_request_target' && github.event.pull_request.head.repo.full_name != github.repository)
     steps:
       - uses: actions/checkout@v6
-        with:
-          repository: ${{ github.event.pull_request.head.repo.full_name }}
-          ref: ${{ github.event.pull_request.head.ref }}
       - id: build
         uses: ./
         with:
           package: backend
           repository: bcgov/quickstart-openshift
 
-      - if: steps.build.outputs.triggered != 'false'
+      - if: steps.build.outputs.triggered == 'true'
         run: |
           # Verify outputs
           echo "Outputs: ${{ toJSON(steps.build.outputs) }}"
-          if [ -z "${{ steps.build.outputs.digest }}" ] || [ "${{ steps.build.outputs.triggered }}" != "true" ]; then
-            echo "Error!  Verify outputs."
+          if [ -z "${{ steps.build.outputs.digest }}" ]; then
+            echo "Error! Verify outputs."
             exit 1
           fi
 
   # No attestation, no id-token, no build
   no-attestation:
     name: No Attestation
-    if: |
-      (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository) ||
-      (github.event_name == 'pull_request_target' && github.event.pull_request.head.repo.full_name != github.repository)
     permissions:
       attestations: none
       id-token: none
@@ -56,9 +45,6 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v6
-        with:
-          repository: ${{ github.event.pull_request.head.repo.full_name }}
-          ref: ${{ github.event.pull_request.head.ref }}
       - id: no-attestation
         uses: ./
         with:
@@ -69,27 +55,21 @@ jobs:
           tag_fallback: test
           triggers: ('frontend/')
 
-      - if: steps.no-attestation.outputs.triggered != 'false'
+      - if: steps.no-attestation.outputs.triggered == 'true'
         run: |
           # Verify outputs
           echo "Outputs: ${{ toJSON(steps.no-attestation.outputs) }}"
-          if [ -z "${{ steps.no-attestation.outputs.digest }}" ] || [ "${{ steps.no-attestation.outputs.triggered }}" != "true" ]; then
-            echo "Error!  Verify outputs."
+          if [ -z "${{ steps.no-attestation.outputs.digest }}" ]; then
+            echo "Error! Verify outputs."
             exit 1
           fi
 
   # FOM apps build from repo root, above their Dockerfiles (extra params)
   advanced:
     name: Advanced
-    if: |
-      (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository) ||
-      (github.event_name == 'pull_request_target' && github.event.pull_request.head.repo.full_name != github.repository)
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v6
-        with:
-          repository: ${{ github.event.pull_request.head.repo.full_name }}
-          ref: ${{ github.event.pull_request.head.ref }}
       - id: advanced
         uses: ./
         with:
@@ -105,15 +85,9 @@ jobs:
   # Test single-package repo format (no package in path)
   single-package:
     name: Single Package
-    if: |
-      (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository) ||
-      (github.event_name == 'pull_request_target' && github.event.pull_request.head.repo.full_name != github.repository)
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v6
-        with:
-          repository: ${{ github.event.pull_request.head.repo.full_name }}
-          ref: ${{ github.event.pull_request.head.ref }}
       - id: single-package
         uses: ./
         with:
@@ -125,27 +99,21 @@ jobs:
             ${{ github.event.number }}
             single-package-test
 
-      - if: steps.single-package.outputs.triggered != 'false'
+      - if: steps.single-package.outputs.triggered == 'true'
         run: |
           # Verify outputs
           echo "Outputs: ${{ toJSON(steps.single-package.outputs) }}"
-          if [ -z "${{ steps.single-package.outputs.digest }}" ] || [ "${{ steps.single-package.outputs.triggered }}" != "true" ]; then
-            echo "Error!  Verify outputs."
+          if [ -z "${{ steps.single-package.outputs.digest }}" ]; then
+            echo "Error! Verify outputs."
             exit 1
           fi
 
   # Test metadata tags feature
   metadata-tags:
     name: Metadata Tags
-    if: |
-      (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository) ||
-      (github.event_name == 'pull_request_target' && github.event.pull_request.head.repo.full_name != github.repository)
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v6
-        with:
-          repository: ${{ github.event.pull_request.head.repo.full_name }}
-          ref: ${{ github.event.pull_request.head.ref }}
       - id: metadata-tags
         uses: ./
         with:
@@ -166,12 +134,12 @@ jobs:
             type=ref,event=pr
             type=sha
 
-      - if: steps.metadata-tags.outputs.triggered != 'false'
+      - if: steps.metadata-tags.outputs.triggered == 'true'
         run: |
           # Verify outputs including labels
           echo "Outputs: ${{ toJSON(steps.metadata-tags.outputs) }}"
-          if [ -z "${{ steps.metadata-tags.outputs.digest }}" ] || [ "${{ steps.metadata-tags.outputs.triggered }}" != "true" ]; then
-            echo "Error!  Verify outputs."
+          if [ -z "${{ steps.metadata-tags.outputs.digest }}" ]; then
+            echo "Error! Verify outputs."
             exit 1
           fi
           # Verify labels output exists when metadata_tags is enabled
@@ -187,7 +155,6 @@ jobs:
     if: always()
     runs-on: ubuntu-24.04
     steps:
-      # Fail if any job failed or was cancelled (but not skipped - skipped is expected for duplicate event filtering)
       - if: contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled')
         run: echo "At least one job has failed or was cancelled." && exit 1
       - run: echo "Success!"
