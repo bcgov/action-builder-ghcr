@@ -192,7 +192,8 @@ runs:
           echo "Container build not required"
           triggered=false
         fi
-        echo "triggered=$triggered" >> $GITHUB_OUTPUT
+        echo "triggered=${triggered}" >> $GITHUB_OUTPUT
+        echo "DEBUG: Setting triggered=${triggered}"
 
     # Log in to GHCR for retag operations
     - name: Log in to the Container registry (for retag)
@@ -223,6 +224,13 @@ runs:
       with:
         repository: ${{ inputs.repository != github.repository && inputs.repository || github.event.pull_request.head.repo.full_name || inputs.repository }}
         ref: ${{ inputs.repository != github.repository && '' || github.event.pull_request.head.sha || '' }}
+
+    - name: Debug build output
+      if: steps.context_check.outputs.skip != 'true'
+      shell: bash
+      run: |
+        echo "DEBUG: steps.build.outputs.triggered = '${{ steps.build.outputs.triggered }}'"
+        echo "DEBUG: Condition check: '${{ steps.build.outputs.triggered }}' == 'true' → ${{ steps.build.outputs.triggered == 'true' }}"
 
     - name: Set up Docker Buildx
       if: steps.context_check.outputs.skip != 'true' && steps.build.outputs.triggered == 'true'
