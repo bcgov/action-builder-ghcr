@@ -192,12 +192,13 @@ runs:
           ${{ inputs.tags }}
 
     # Checkout code for building
-    # For PR events: checkout PR head (supports fork PRs)
+    # If repository input differs from github.repository, use that (external repo build)
+    # For PR events on same repo: checkout PR head (supports fork PRs)
     # For other events: checkout inputs.repository (defaults to github.repository)
     - uses: actions/checkout@v6
       with:
-        repository: ${{ github.event.pull_request.head.repo.full_name || inputs.repository }}
-        ref: ${{ github.event.pull_request.head.sha || '' }}
+        repository: ${{ inputs.repository != github.repository && inputs.repository || github.event.pull_request.head.repo.full_name || inputs.repository }}
+        ref: ${{ inputs.repository != github.repository && '' || github.event.pull_request.head.sha || '' }}
 
     - name: Set up Docker Buildx
       if: steps.build.outputs.triggered == 'true'
