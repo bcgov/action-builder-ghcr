@@ -438,9 +438,13 @@ runs:
 
     # Action repo needs to be present for cleanup/tests
     # Re-checkout base repo after building from fork or different repo
+    # Use head.repo + head.ref to properly checkout PR branch (works for both PR types)
     - name: Checkout local repo to make sure action.yml is present
       if: steps.context_check.outputs.skip != 'true' && (github.event.pull_request.head.repo.full_name != github.repository || github.repository != inputs.repository || failure())
       uses: actions/checkout@v6
+      with:
+        repository: ${{ github.event.pull_request.head.repo.full_name || github.repository }}
+        ref: ${{ github.event.pull_request.head.ref || github.ref }}
 
     - name: Print summary outputs
       if: always() # Always run this step to summarize the build
