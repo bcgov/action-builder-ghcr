@@ -1,7 +1,7 @@
 name: PR
 
 on:
-  pull_request:
+  pull_request_target:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -19,6 +19,9 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v6
+        with:
+          repository: ${{ github.event.pull_request.head.repo.full_name }}
+          ref: ${{ github.event.pull_request.head.sha }}
       - id: build
         uses: ./
         with:
@@ -44,6 +47,9 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v6
+        with:
+          repository: ${{ github.event.pull_request.head.repo.full_name }}
+          ref: ${{ github.event.pull_request.head.sha }}
       - id: no-attestation
         uses: ./
         with:
@@ -69,6 +75,9 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v6
+        with:
+          repository: ${{ github.event.pull_request.head.repo.full_name }}
+          ref: ${{ github.event.pull_request.head.sha }}
       - id: advanced
         uses: ./
         with:
@@ -87,6 +96,9 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v6
+        with:
+          repository: ${{ github.event.pull_request.head.repo.full_name }}
+          ref: ${{ github.event.pull_request.head.sha }}
       - id: single-package
         uses: ./
         with:
@@ -113,6 +125,9 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v6
+        with:
+          repository: ${{ github.event.pull_request.head.repo.full_name }}
+          ref: ${{ github.event.pull_request.head.sha }}
       - id: metadata-tags
         uses: ./
         with:
