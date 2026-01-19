@@ -1,6 +1,7 @@
 name: PR
 
 on:
+  pull_request:
   pull_request_target:
 
 concurrency:
@@ -104,7 +105,7 @@ jobs:
         with:
           package: action-builder-ghcr
           build_context: .
-          build_file: ./Dockerfile  # Results in org/repo format since Dockerfile is in root
+          build_file: ./Dockerfile # Results in org/repo format since Dockerfile is in root
           repository: bcgov/nr-peach
           tags: |
             ${{ github.event.number }}
@@ -140,7 +141,7 @@ jobs:
           tag_fallback: test
           triggers: ('frontend/')
           # Enable metadata tags
-          metadata_tags: 'true'
+          metadata_tags: "true"
           metadata_flavor: |
             latest=true
           metadata_tag_rules: |
