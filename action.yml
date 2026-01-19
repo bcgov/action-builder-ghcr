@@ -142,7 +142,9 @@ runs:
         echo "first_tag=${first_tag}" >> $GITHUB_OUTPUT
 
     # Send triggers to diff action (handles fork PRs automatically in v1.0.0+)
+    # Skip for external repo builds - diff makes no sense when building a different repo
     - id: diff
+      if: inputs.repository == github.repository
       uses: bcgov/action-diff-triggers@v1.0.0
       with:
         triggers: ${{ inputs.triggers }}
@@ -157,14 +159,14 @@ runs:
       run: |
         # Check for builds
         triggered=true
-        if [ "${{ steps.diff.outputs.triggered }}" == "true" ]; then
+        if [ "${{ inputs.repository }}" != "${{ github.repository }}" ]; then
+          echo "Build triggered. External repository provided (diff skipped)."
+        elif [ "${{ steps.diff.outputs.triggered }}" == "true" ]; then
           echo "Build triggered. Used bcgov/action-diff-triggers."
-        elif [ "${{ inputs.repository }}" != "${{ github.repository }}" ]; then
-          echo "Build triggered.  Override repository provided."
         elif [ -z "${{ inputs.tag_fallback }}" ]; then
-          echo "Build triggered.  No tag_fallback provided."
+          echo "Build triggered. No tag_fallback provided."
         elif [[ ! $(docker manifest inspect "${URL_FALLBACK}") ]]; then
-          echo "Build triggered.  Fallback tag (tag_fallback) not usable."
+          echo "Build triggered. Fallback tag (tag_fallback) not usable."
         else
           echo "Container build not required"
           triggered=false
