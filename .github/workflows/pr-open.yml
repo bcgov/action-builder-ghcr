@@ -18,11 +18,16 @@ jobs:
   build:
     name: Build
     runs-on: ubuntu-24.04
+    # Skip pull_request_target for same-repo PRs (pull_request handles those)
+    # Skip pull_request for fork PRs (pull_request_target handles those)
+    if: |
+      (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository) ||
+      (github.event_name == 'pull_request_target' && github.event.pull_request.head.repo.full_name != github.repository)
     steps:
       - uses: actions/checkout@v6
         with:
           repository: ${{ github.event.pull_request.head.repo.full_name }}
-          ref: ${{ github.event.pull_request.head.sha }}
+          ref: ${{ github.event.pull_request.head.ref }}
       - id: build
         uses: ./
         with:
@@ -41,6 +46,9 @@ jobs:
   # No attestation, no id-token, no build
   no-attestation:
     name: No Attestation
+    if: |
+      (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository) ||
+      (github.event_name == 'pull_request_target' && github.event.pull_request.head.repo.full_name != github.repository)
     permissions:
       attestations: none
       id-token: none
@@ -50,7 +58,7 @@ jobs:
       - uses: actions/checkout@v6
         with:
           repository: ${{ github.event.pull_request.head.repo.full_name }}
-          ref: ${{ github.event.pull_request.head.sha }}
+          ref: ${{ github.event.pull_request.head.ref }}
       - id: no-attestation
         uses: ./
         with:
@@ -73,12 +81,15 @@ jobs:
   # FOM apps build from repo root, above their Dockerfiles (extra params)
   advanced:
     name: Advanced
+    if: |
+      (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository) ||
+      (github.event_name == 'pull_request_target' && github.event.pull_request.head.repo.full_name != github.repository)
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v6
         with:
           repository: ${{ github.event.pull_request.head.repo.full_name }}
-          ref: ${{ github.event.pull_request.head.sha }}
+          ref: ${{ github.event.pull_request.head.ref }}
       - id: advanced
         uses: ./
         with:
@@ -94,12 +105,15 @@ jobs:
   # Test single-package repo format (no package in path)
   single-package:
     name: Single Package
+    if: |
+      (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository) ||
+      (github.event_name == 'pull_request_target' && github.event.pull_request.head.repo.full_name != github.repository)
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v6
         with:
           repository: ${{ github.event.pull_request.head.repo.full_name }}
-          ref: ${{ github.event.pull_request.head.sha }}
+          ref: ${{ github.event.pull_request.head.ref }}
       - id: single-package
         uses: ./
         with:
@@ -123,12 +137,15 @@ jobs:
   # Test metadata tags feature
   metadata-tags:
     name: Metadata Tags
+    if: |
+      (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository) ||
+      (github.event_name == 'pull_request_target' && github.event.pull_request.head.repo.full_name != github.repository)
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v6
         with:
           repository: ${{ github.event.pull_request.head.repo.full_name }}
-          ref: ${{ github.event.pull_request.head.sha }}
+          ref: ${{ github.event.pull_request.head.ref }}
       - id: metadata-tags
         uses: ./
         with:
@@ -170,6 +187,7 @@ jobs:
     if: always()
     runs-on: ubuntu-24.04
     steps:
-      - if: contains(needs.*.result, 'failure')||contains(needs.*.result, 'canceled')
-        run: echo "At least one job has failed." && exit 1
+      # Fail if any job failed or was cancelled (but not skipped - skipped is expected for duplicate event filtering)
+      - if: contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled')
+        run: echo "At least one job has failed or was cancelled." && exit 1
       - run: echo "Success!"
