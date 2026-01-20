@@ -82,7 +82,7 @@ outputs:
 
   triggered:
     description: Did a deployment trigger?  [true|false]
-    value: ${{ steps.context_check.outputs.skip == 'true' && 'false' || steps.build.outputs.triggered }}
+    value: ${{ steps.vars.outputs.skip == 'true' && 'false' || steps.build.outputs.triggered }}
 
   labels:
     description: "Generated OCI labels from metadata-action (only when metadata_tags is enabled)"
@@ -95,47 +95,36 @@ outputs:
 runs:
   using: composite
   steps:
-    # Skip redundant runs when both pull_request and pull_request_target are configured
-    # Only skip pull_request_target for same-repo PRs (pull_request handles those)
-    # This allows consumers to simply add both triggers without complex conditionals
-    - id: context_check
-      shell: bash
-      run: |
-        # Check for redundant event context
-        EVENT="${{ github.event_name }}"
-        HEAD_REPO="${{ github.event.pull_request.head.repo.full_name }}"
-        BASE_REPO="${{ github.repository }}"
-
-        # Only check for redundancy in PR contexts
-        if [[ "$EVENT" == "pull_request_target" && -n "$HEAD_REPO" && "$HEAD_REPO" == "$BASE_REPO" ]]; then
-          echo "Skipping: pull_request_target for same-repo PR (pull_request handles this)"
-          echo "skip=true" >> $GITHUB_OUTPUT
-          exit 0
-        fi
-
-        # Warn if fork PR is running under pull_request (lacks write permissions)
-        if [[ "$EVENT" == "pull_request" && -n "$HEAD_REPO" && "$HEAD_REPO" != "$BASE_REPO" ]]; then
-          echo "::warning::Fork PR detected under 'pull_request' event. Build/push will fail due to missing GHCR permissions. Add 'pull_request_target:' to your workflow triggers for fork support."
-        fi
-
-        echo "skip=false" >> $GITHUB_OUTPUT
-
+    # Initialize variables and check for skip conditions
     - id: vars
-      if: steps.context_check.outputs.skip != 'true'
       shell: bash
       env:
         INPUT_PACKAGE: ${{ inputs.package }}
         CONTEXT_REPO: ${{ github.event.repository.name }}
         INPUT_TAGS: ${{ inputs.tags }}
       run: |
+        # Check for redundant event context (skip pull_request_target for same-repo PRs)
+        EVENT="${{ github.event_name }}"
+        HEAD_REPO="${{ github.event.pull_request.head.repo.full_name }}"
+        BASE_REPO="${{ github.repository }}"
+
+        if [[ "$EVENT" == "pull_request_target" && -n "$HEAD_REPO" && "$HEAD_REPO" == "$BASE_REPO" ]]; then
+          echo "Skipping: pull_request_target for same-repo PR (pull_request handles this)"
+          echo "skip=true" >> $GITHUB_OUTPUT
+          exit 0
+        fi
+
+        # Skip if fork PR is running under pull_request (lacks write permissions)
+        if [[ "$EVENT" == "pull_request" && -n "$HEAD_REPO" && "$HEAD_REPO" != "$BASE_REPO" ]]; then
+          echo "::warning::Fork PR detected under 'pull_request' event. Skipping - no GHCR write permissions. Add 'pull_request_target:' to your workflow triggers for fork support."
+          echo "skip=true" >> $GITHUB_OUTPUT
+          exit 0
+        fi
+
+        echo "skip=false" >> $GITHUB_OUTPUT
+
         # Process inputs and set variables
         set -euo pipefail
-
-        # Early exit for deprecated input
-        if [ -n "${{ inputs.tag }}" ]; then
-          echo "Input 'tag' is deprecated. Please use 'tags' instead."
-          exit 1
-        fi
 
         # If package matches repo name, use simpler image_path
         if [ "${INPUT_PACKAGE,,}" = "${CONTEXT_REPO,,}" ]; then
@@ -170,7 +159,7 @@ runs:
     # Send triggers to diff action (handles fork PRs automatically in v1.0.0+)
     # Skip for external repo builds - diff makes no sense when building a different repo
     - id: diff
-      if: inputs.repository == github.repository && steps.context_check.outputs.skip != 'true'
+      if: inputs.repository == github.repository && steps.vars.outputs.skip != 'true'
       uses: bcgov/action-diff-triggers@v1.0.0
       with:
         triggers: ${{ inputs.triggers }}
@@ -178,7 +167,7 @@ runs:
 
     # Check if a build is required (steps.build.outputs.triggered=true|false)
     - name: Check for builds
-      if: steps.context_check.outputs.skip != 'true'
+      if: steps.vars.outputs.skip != 'true'
       env:
         URL_FALLBACK: ghcr.io/${{ steps.vars.outputs.image_path }}:${{ inputs.tag_fallback }}
       id: build
@@ -202,7 +191,7 @@ runs:
 
     # Log in to GHCR (for both retag and build operations)
     - name: Log in to the Container registry
-      if: steps.context_check.outputs.skip != 'true'
+      if: steps.vars.outputs.skip != 'true'
       uses: docker/login-action@v3
       with:
         registry: ghcr.io
@@ -212,7 +201,7 @@ runs:
     # If a build is not required, reuse a previous image
     - name: Recycle/retag Previous Images
       uses: shrink/actions-docker-registry-tag@f04afd0559f66b288586792eb150f45136a927fa # v4
-      if: steps.context_check.outputs.skip != 'true' && steps.build.outputs.triggered != 'true'
+      if: steps.vars.outputs.skip != 'true' && steps.build.outputs.triggered != 'true'
       with:
         registry: ghcr.io
         repository: ${{ steps.vars.outputs.image_path }}
@@ -418,7 +407,7 @@ runs:
       shell: bash
       run: |
         echo "---- Build Summary ----"
-        if [ "${{ steps.context_check.outputs.skip }}" == "true" ]; then
+        if [ "${{ steps.vars.outputs.skip }}" == "true" ]; then
           echo "status: SKIPPED (redundant pull_request_target for same-repo PR)"
           echo "triggered: false"
         elif [ "${{ steps.build.outputs.triggered }}" == "true" ]; then
