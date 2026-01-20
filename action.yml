@@ -113,6 +113,11 @@ runs:
           exit 0
         fi
 
+        # Warn if fork PR is running under pull_request (lacks write permissions)
+        if [[ "$EVENT" == "pull_request" && -n "$HEAD_REPO" && "$HEAD_REPO" != "$BASE_REPO" ]]; then
+          echo "::warning::Fork PR detected under 'pull_request' event. Build/push will fail due to missing GHCR permissions. Add 'pull_request_target:' to your workflow triggers for fork support."
+        fi
+
         echo "skip=false" >> $GITHUB_OUTPUT
 
     - id: vars
