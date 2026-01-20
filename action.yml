@@ -82,7 +82,7 @@ outputs:
 
   triggered:
     description: Did a deployment trigger?  [true|false]
-    value: ${{ steps.context_check.outputs.skip == 'true' && 'false' || steps.diff.outputs.triggered }}
+    value: ${{ steps.context_check.outputs.skip == 'true' && 'false' || steps.build.outputs.triggered }}
 
   labels:
     description: "Generated OCI labels from metadata-action (only when metadata_tags is enabled)"
@@ -456,7 +456,7 @@ runs:
           echo "triggered: false"
         else
           echo "digest: ${{ steps.build_and_push.outputs.digest }}"
-          echo "triggered: ${{ steps.diff.outputs.triggered }}"
+          echo "triggered: ${{ steps.build.outputs.triggered }}"
           echo "final_tags: ${{ steps.tags.outputs.final_tags }}"
           echo "metadata_enabled: ${{ inputs.metadata_tags }}"
           if [ "${{ inputs.metadata_tags }}" == "true" ]; then
