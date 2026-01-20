@@ -193,7 +193,6 @@ runs:
           triggered=false
         fi
         echo "triggered=${triggered}" >> $GITHUB_OUTPUT
-        echo "DEBUG: Setting triggered=${triggered}"
 
     # Log in to GHCR for retag operations
     - name: Log in to the Container registry (for retag)
@@ -215,26 +214,23 @@ runs:
         tags: |
           ${{ inputs.tags }}
 
-    # Checkout code for building
-    # If repository input differs from github.repository, use that (external repo build)
-    # For PR events on same repo: checkout PR head (supports fork PRs)
-    # For other events: checkout inputs.repository (defaults to github.repository)
-    - name: Checkout code for building
-      id: build_checkout
-      if: steps.context_check.outputs.skip != 'true'
+    # Checkout code for building - external repo (use default branch)
+    - name: Checkout external repository
+      id: build_checkout_external
+      if: steps.context_check.outputs.skip != 'true' && inputs.repository != github.repository
       uses: actions/checkout@v6
       with:
-        repository: ${{ inputs.repository != github.repository && inputs.repository || github.event.pull_request.head.repo.full_name || inputs.repository }}
-        ref: ${{ inputs.repository != github.repository && '' || github.event.pull_request.head.sha || '' }}
+        repository: ${{ inputs.repository }}
+        # No ref specified = default branch of that repo
 
-    - name: Debug build output
-      shell: bash
-      run: |
-        echo "DEBUG: context_check.skip = '${{ steps.context_check.outputs.skip }}'"
-        echo "DEBUG: build.triggered = '${{ steps.build.outputs.triggered }}'"
-        echo "DEBUG: build_checkout.outcome = '${{ steps.build_checkout.outcome }}'"
-        echo "DEBUG: About to run Buildx setup..."
-        ls -la
+    # Checkout code for building - same repo PR (use PR head for fork support)
+    - name: Checkout PR head
+      id: build_checkout_pr
+      if: steps.context_check.outputs.skip != 'true' && inputs.repository == github.repository
+      uses: actions/checkout@v6
+      with:
+        repository: ${{ github.event.pull_request.head.repo.full_name || github.repository }}
+        ref: ${{ github.event.pull_request.head.sha || github.ref }}
 
     - name: Set up Docker Buildx
       if: steps.context_check.outputs.skip != 'true' && steps.build.outputs.triggered == 'true'
