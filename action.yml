@@ -170,7 +170,7 @@ runs:
     # Send triggers to diff action (handles fork PRs automatically in v1.0.0+)
     # Skip for external repo builds - diff makes no sense when building a different repo
     - id: diff
-      if: steps.context_check.outputs.skip != 'true' && inputs.repository == github.repository
+      if: inputs.repository == github.repository && steps.context_check.outputs.skip != 'true'
       uses: bcgov/action-diff-triggers@v1.0.0
       with:
         triggers: ${{ inputs.triggers }}
@@ -243,7 +243,7 @@ runs:
     - name: Prepare Container Metadata tags
       id: meta
       if: steps.build.outputs.triggered == 'true' && inputs.metadata_tags == 'true'
-      uses: docker/metadata-action@c299e40c65443455700f0fdfc63efafe5b349051 # v5
+      uses: docker/metadata-action@v5
       with:
         images: ${{ steps.vars.outputs.image_name }}
         flavor: ${{ inputs.metadata_flavor }}
@@ -410,7 +410,7 @@ runs:
     # Re-checkout after building from external repo (workspace was overwritten)
     # Only needed when testing action with `uses: ./` and building external repos
     - name: Checkout local repo
-      if: steps.context_check.outputs.skip != 'true' && inputs.repository != github.repository
+      if: steps.build.outputs.triggered == 'true' && inputs.repository != github.repository
       uses: actions/checkout@v6
 
     - name: Print summary outputs
@@ -421,12 +421,15 @@ runs:
         if [ "${{ steps.context_check.outputs.skip }}" == "true" ]; then
           echo "status: SKIPPED (redundant pull_request_target for same-repo PR)"
           echo "triggered: false"
-        else
+        elif [ "${{ steps.build.outputs.triggered }}" == "true" ]; then
+          echo "triggered: true"
           echo "digest: ${{ steps.build_and_push.outputs.digest }}"
-          echo "triggered: ${{ steps.build.outputs.triggered }}"
-          echo "final_tags: ${{ steps.tags.outputs.final_tags }}"
+          echo "tags: ${{ steps.tags.outputs.final_tags }}"
           if [ "${{ steps.attest.outcome }}" == "failure" ]; then
             echo "::warning::Attestation failed. Add permissions: id-token: write, attestations: write"
           fi
+        else
+          echo "triggered: false"
+          echo "retagged: ${{ inputs.tag_fallback }} -> ${{ inputs.tags }}"
         fi
         echo "-----------------------"
