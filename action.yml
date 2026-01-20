@@ -121,11 +121,10 @@ runs:
           exit 0
         fi
 
-        # Skip fork PRs under pull_request (lacks write permissions)
+        # Fail fork PRs under pull_request (lacks write permissions)
         if [[ "$EVENT" == "pull_request" && "$IS_FORK" == "true" ]]; then
-          echo "::warning::Fork PR detected under 'pull_request' event. Skipping - no GHCR write permissions. Add 'pull_request_target:' to your workflow triggers for fork support."
-          echo "skip=true" >> $GITHUB_OUTPUT
-          exit 0
+          echo "::error::Fork PR detected under 'pull_request' event. No GHCR write permissions. Add 'pull_request_target:' to your workflow triggers for fork support."
+          exit 1
         fi
 
         echo "skip=false" >> $GITHUB_OUTPUT
