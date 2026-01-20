@@ -219,21 +219,22 @@ runs:
     # If repository input differs from github.repository, use that (external repo build)
     # For PR events on same repo: checkout PR head (supports fork PRs)
     # For other events: checkout inputs.repository (defaults to github.repository)
-    - uses: actions/checkout@v6
+    - name: Checkout code for building
+      id: build_checkout
       if: steps.context_check.outputs.skip != 'true'
+      uses: actions/checkout@v6
       with:
         repository: ${{ inputs.repository != github.repository && inputs.repository || github.event.pull_request.head.repo.full_name || inputs.repository }}
         ref: ${{ inputs.repository != github.repository && '' || github.event.pull_request.head.sha || '' }}
 
     - name: Debug build output
-      if: always()
       shell: bash
       run: |
         echo "DEBUG: context_check.skip = '${{ steps.context_check.outputs.skip }}'"
         echo "DEBUG: build.triggered = '${{ steps.build.outputs.triggered }}'"
-        echo "DEBUG: Condition (skip != true): ${{ steps.context_check.outputs.skip != 'true' }}"
-        echo "DEBUG: Condition (triggered == true): ${{ steps.build.outputs.triggered == 'true' }}"
-        echo "DEBUG: Combined condition: ${{ steps.context_check.outputs.skip != 'true' && steps.build.outputs.triggered == 'true' }}"
+        echo "DEBUG: build_checkout.outcome = '${{ steps.build_checkout.outcome }}'"
+        echo "DEBUG: About to run Buildx setup..."
+        ls -la
 
     - name: Set up Docker Buildx
       if: steps.context_check.outputs.skip != 'true' && steps.build.outputs.triggered == 'true'
