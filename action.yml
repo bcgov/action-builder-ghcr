@@ -226,11 +226,14 @@ runs:
         ref: ${{ inputs.repository != github.repository && '' || github.event.pull_request.head.sha || '' }}
 
     - name: Debug build output
-      if: steps.context_check.outputs.skip != 'true'
+      if: always()
       shell: bash
       run: |
-        echo "DEBUG: steps.build.outputs.triggered = '${{ steps.build.outputs.triggered }}'"
-        echo "DEBUG: Condition check: '${{ steps.build.outputs.triggered }}' == 'true' → ${{ steps.build.outputs.triggered == 'true' }}"
+        echo "DEBUG: context_check.skip = '${{ steps.context_check.outputs.skip }}'"
+        echo "DEBUG: build.triggered = '${{ steps.build.outputs.triggered }}'"
+        echo "DEBUG: Condition (skip != true): ${{ steps.context_check.outputs.skip != 'true' }}"
+        echo "DEBUG: Condition (triggered == true): ${{ steps.build.outputs.triggered == 'true' }}"
+        echo "DEBUG: Combined condition: ${{ steps.context_check.outputs.skip != 'true' && steps.build.outputs.triggered == 'true' }}"
 
     - name: Set up Docker Buildx
       if: steps.context_check.outputs.skip != 'true' && steps.build.outputs.triggered == 'true'
