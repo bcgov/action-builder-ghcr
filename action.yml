@@ -103,35 +103,26 @@ runs:
         CONTEXT_REPO: ${{ github.event.repository.name }}
         INPUT_TAGS: ${{ inputs.tags }}
       run: |
-        # Determine event context
+        # Check contexts and set variables
+
+        # Process inputs and set variables
+        set -euo pipefail
+
+        # Check for skip/fail conditions based on event and fork status
         EVENT="${{ github.event_name }}"
         HEAD_REPO="${{ github.event.pull_request.head.repo.full_name }}"
         BASE_REPO="${{ github.repository }}"
 
-        # Determine if this is a fork PR (HEAD_REPO differs from BASE_REPO)
-        IS_FORK="false"
-        if [[ -n "$HEAD_REPO" && "$HEAD_REPO" != "$BASE_REPO" ]]; then
-          IS_FORK="true"
-        fi
-
-        # Skip pull_request_target for same-repo PRs (pull_request handles those)
-        if [[ "$EVENT" == "pull_request_target" && -n "$HEAD_REPO" && "$IS_FORK" == "false" ]]; then
+        if [[ "$EVENT" == "pull_request_target" && -n "$HEAD_REPO" && "$HEAD_REPO" == "$BASE_REPO" ]]; then
           echo "Skipping: pull_request_target for same-repo PR (pull_request handles this)"
           echo "skip=true" >> $GITHUB_OUTPUT
           exit 0
-        fi
-
-        # Fail fork PRs under pull_request (lacks write permissions)
-        if [[ "$EVENT" == "pull_request" && "$IS_FORK" == "true" ]]; then
+        elif [[ "$EVENT" == "pull_request" && -n "$HEAD_REPO" && "$HEAD_REPO" != "$BASE_REPO" ]]; then
           echo "::error::Fork PR detected under 'pull_request' event. No GHCR write permissions. Add 'pull_request_target:' to your workflow triggers for fork support."
           exit 1
         fi
 
         echo "skip=false" >> $GITHUB_OUTPUT
-        echo "is_fork=${IS_FORK}" >> $GITHUB_OUTPUT
-
-        # Process inputs and set variables
-        set -euo pipefail
 
         # If package matches repo name, use simpler image_path
         if [ "${INPUT_PACKAGE,,}" = "${CONTEXT_REPO,,}" ]; then
