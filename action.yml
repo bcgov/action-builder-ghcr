@@ -217,8 +217,7 @@ runs:
 
     # Checkout code for building - external repo (use default branch)
     - name: Checkout external repository
-      id: build_checkout_external
-      if: steps.context_check.outputs.skip != 'true' && inputs.repository != github.repository
+      if: steps.context_check.outputs.skip != 'true' && steps.build.outputs.triggered == 'true' && inputs.repository != github.repository
       uses: actions/checkout@v6
       with:
         repository: ${{ inputs.repository }}
@@ -226,8 +225,7 @@ runs:
 
     # Checkout code for building - same repo PR (use PR head for fork support)
     - name: Checkout PR head
-      id: build_checkout_pr
-      if: steps.context_check.outputs.skip != 'true' && inputs.repository == github.repository
+      if: steps.context_check.outputs.skip != 'true' && steps.build.outputs.triggered == 'true' && inputs.repository == github.repository
       uses: actions/checkout@v6
       with:
         repository: ${{ github.event.pull_request.head.repo.full_name || github.repository }}
@@ -404,56 +402,14 @@ runs:
         subject-name: ghcr.io/${{ steps.vars.outputs.image_path }}
         subject-digest: ${{ steps.build_and_push.outputs.digest }}
 
-    - name: Verify attestations
-      if: steps.context_check.outputs.skip != 'true' && steps.build.outputs.triggered == 'true'
-      continue-on-error: true
-      shell: bash
-      run: |
-        echo "::notice::Verifying build attestations..."
-
-        # Verify GitHub attestation
-        if [ "${{ steps.attest.outcome }}" = "success" ]; then
-          echo "✓ GitHub build provenance attestation verified"
-        else
-          echo "⚠ GitHub build provenance attestation failed"
-        fi
-
-        # Verify SBOM files exist (only if SBOM was enabled)
-        if [ "${{ inputs.sbom }}" = "true" ]; then
-          if [ "${{ steps.sbom.outputs.sbom_files_exist }}" = "true" ]; then
-            echo "✓ SBOM files generated successfully"
-            echo "  - CycloneDX: sboms/${{ steps.sbom.outputs.package_sanitized }}-cyclonedx.json"
-            echo "  - SPDX: sboms/${{ steps.sbom.outputs.package_sanitized }}-spdx.json"
-          else
-            echo "⚠ SBOM generation failed"
-          fi
-        fi
-
-        echo "::notice::Attestation verification completed"
-
-    - name: Prompt user to fix permissions
-      if: steps.context_check.outputs.skip != 'true' && steps.attest.outcome == 'failure'
-      shell: bash
-      run: |
-        echo "::warning::Attestation skipped due to missing id-token:write and attestations:write permissions. Please update workflow permissions."
-
-    # Action repo needs to be present for cleanup/tests
-    # Re-checkout base repo after building from fork or different repo
-    # Use head.repo + head.ref to properly checkout PR branch (works for both PR types)
-    - name: Checkout local repo to make sure action.yml is present
-      if: |
-        steps.context_check.outputs.skip != 'true' && (
-          (github.event.pull_request && github.event.pull_request.head.repo.full_name != github.repository) ||
-          github.repository != inputs.repository ||
-          failure()
-        )
+    # Re-checkout after building from external repo (workspace was overwritten)
+    # Only needed when testing action with `uses: ./` and building external repos
+    - name: Checkout local repo
+      if: steps.context_check.outputs.skip != 'true' && inputs.repository != github.repository
       uses: actions/checkout@v6
-      with:
-        repository: ${{ github.event.pull_request.head.repo.full_name || github.repository }}
-        ref: ${{ github.event.pull_request.head.ref || github.ref }}
 
     - name: Print summary outputs
-      if: always() # Always run this step to summarize the build
+      if: always()
       shell: bash
       run: |
         echo "---- Build Summary ----"
@@ -464,10 +420,8 @@ runs:
           echo "digest: ${{ steps.build_and_push.outputs.digest }}"
           echo "triggered: ${{ steps.build.outputs.triggered }}"
           echo "final_tags: ${{ steps.tags.outputs.final_tags }}"
-          echo "metadata_enabled: ${{ inputs.metadata_tags }}"
-          if [ "${{ inputs.metadata_tags }}" == "true" ]; then
-            echo "metadata_labels: ${{ steps.tags.outputs.labels }}"
-            echo "metadata_annotations: ${{ steps.tags.outputs.annotations }}"
+          if [ "${{ steps.attest.outcome }}" == "failure" ]; then
+            echo "::warning::Attestation failed. Add permissions: id-token: write, attestations: write"
           fi
         fi
         echo "-----------------------"
