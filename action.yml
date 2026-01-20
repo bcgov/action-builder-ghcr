@@ -42,9 +42,6 @@ inputs:
   repository:
     description: Non-default repo to clone
     default: ${{ github.repository }}
-  tag:
-    description: Deprecated input; use tags instead
-    deprecationMessage: "Input 'tag' is deprecated and will be removed in a future release. Please use 'tags' instead."
   token:
     description: Specify token (GH or PAT), instead of inheriting one from the calling workflow
     default: ${{ github.token }}
@@ -104,8 +101,6 @@ runs:
         INPUT_TAGS: ${{ inputs.tags }}
       run: |
         # Check contexts and set variables
-
-        # Process inputs and set variables
         set -euo pipefail
 
         # Check for skip/fail conditions based on event and fork status
@@ -318,13 +313,6 @@ runs:
         build-args: ${{ inputs.build_args }}
         secrets: ${{ inputs.secrets }}
 
-    - name: Install Syft
-      if: steps.build.outputs.triggered == 'true' && inputs.sbom == 'true'
-      shell: bash
-      run: |
-        # Install Syft
-        curl -sSfL https://raw.githubusercontent.com/anchore/syft/main/install.sh | sh -s -- -b /usr/local/bin
-
     - name: Generate SBOM
       id: sbom
       if: steps.build.outputs.triggered == 'true' && inputs.sbom == 'true'
@@ -332,6 +320,9 @@ runs:
       shell: bash
       run: |
         set +e -u
+
+        # Install Syft
+        curl -sSfL https://raw.githubusercontent.com/anchore/syft/main/install.sh | sh -s -- -b /usr/local/bin
 
         IMAGE="ghcr.io/${{ steps.vars.outputs.image_path }}@${{ steps.build_and_push.outputs.digest }}"
         PACKAGE_SANITIZED=$(echo "${{ inputs.package }}" | tr '/:' '-' | tr -d ' ')
