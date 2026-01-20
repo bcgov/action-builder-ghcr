@@ -106,7 +106,8 @@ runs:
         HEAD_REPO="${{ github.event.pull_request.head.repo.full_name }}"
         BASE_REPO="${{ github.repository }}"
 
-        if [[ "$EVENT" == "pull_request_target" && "$HEAD_REPO" == "$BASE_REPO" ]]; then
+        # Only check for redundancy in PR contexts
+        if [[ "$EVENT" == "pull_request_target" && -n "$HEAD_REPO" && "$HEAD_REPO" == "$BASE_REPO" ]]; then
           echo "Skipping: pull_request_target for same-repo PR (pull_request handles this)"
           echo "skip=true" >> $GITHUB_OUTPUT
           exit 0
@@ -440,7 +441,12 @@ runs:
     # Re-checkout base repo after building from fork or different repo
     # Use head.repo + head.ref to properly checkout PR branch (works for both PR types)
     - name: Checkout local repo to make sure action.yml is present
-      if: steps.context_check.outputs.skip != 'true' && (github.event.pull_request.head.repo.full_name != github.repository || github.repository != inputs.repository || failure())
+      if: |
+        steps.context_check.outputs.skip != 'true' && (
+          (github.event.pull_request && github.event.pull_request.head.repo.full_name != github.repository) ||
+          github.repository != inputs.repository ||
+          failure()
+        )
       uses: actions/checkout@v6
       with:
         repository: ${{ github.event.pull_request.head.repo.full_name || github.repository }}
