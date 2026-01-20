@@ -126,24 +126,8 @@ runs:
         echo "image_path=${image_path,,}" >> $GITHUB_OUTPUT
         echo "image_name=ghcr.io/${image_path,,}" >> $GITHUB_OUTPUT
 
-        # Filter out empty lines from tags input (used for both metadata_tags and first_tag)
-        filtered_tags=$(printf '%s\n' "${INPUT_TAGS}" | grep -v '^$' || true)
-
-        # Convert multiline tags to metadata-action format (type=raw,value=tag)
-        # Each line becomes: type=raw,value=<tag>
-        if [ -n "${filtered_tags}" ]; then
-          metadata_tags=$(printf '%s\n' "${filtered_tags}" | tr '[:upper:]' '[:lower:]' | sed 's/^/type=raw,value=/')
-          echo "metadata_tags<<EOF" >> $GITHUB_OUTPUT
-          echo "${metadata_tags}" >> $GITHUB_OUTPUT
-          echo "EOF" >> $GITHUB_OUTPUT
-        fi
-
         # Extract first tag for artifact naming (sanitized for artifact name compatibility)
-        # Artifact names can contain: letters, numbers, hyphens, underscores, and periods
-        if [ -n "${filtered_tags}" ]; then
-          first_tag=$(printf '%s\n' "${filtered_tags}" | head -n 1 | tr '[:upper:]' '[:lower:]' | tr -cd '[:alnum:]._-')
-        fi
-        # Fallback to 'artifact' if sanitized tag is empty
+        first_tag=$(printf '%s\n' "${INPUT_TAGS}" | grep -v '^$' | head -n 1 | tr '[:upper:]' '[:lower:]' | tr -cd '[:alnum:]._-')
         first_tag="${first_tag:-artifact}"
         echo "first_tag=${first_tag}" >> $GITHUB_OUTPUT
 
