@@ -222,7 +222,7 @@ runs:
 
     # Checkout code for building - external repo (use default branch)
     - name: Checkout external repository
-      if: steps.context_check.outputs.skip != 'true' && steps.build.outputs.triggered == 'true' && inputs.repository != github.repository
+      if: steps.build.outputs.triggered == 'true' && inputs.repository != github.repository
       uses: actions/checkout@v6
       with:
         repository: ${{ inputs.repository }}
@@ -230,19 +230,19 @@ runs:
 
     # Checkout code for building - same repo PR (use PR head for fork support)
     - name: Checkout PR head
-      if: steps.context_check.outputs.skip != 'true' && steps.build.outputs.triggered == 'true' && inputs.repository == github.repository
+      if: steps.build.outputs.triggered == 'true' && inputs.repository == github.repository
       uses: actions/checkout@v6
       with:
         repository: ${{ github.event.pull_request.head.repo.full_name || github.repository }}
         ref: ${{ github.event.pull_request.head.sha || github.ref }}
 
     - name: Set up Docker Buildx
-      if: steps.context_check.outputs.skip != 'true' && steps.build.outputs.triggered == 'true'
+      if: steps.build.outputs.triggered == 'true'
       uses: docker/setup-buildx-action@v3
 
     - name: Prepare Container Metadata tags
       id: meta
-      if: steps.context_check.outputs.skip != 'true' && steps.build.outputs.triggered == 'true' && inputs.metadata_tags == 'true'
+      if: steps.build.outputs.triggered == 'true' && inputs.metadata_tags == 'true'
       uses: docker/metadata-action@c299e40c65443455700f0fdfc63efafe5b349051 # v5
       with:
         images: ${{ steps.vars.outputs.image_name }}
@@ -251,7 +251,7 @@ runs:
 
     - name: Merge tags
       id: tags
-      if: steps.context_check.outputs.skip != 'true' && steps.build.outputs.triggered == 'true'
+      if: steps.build.outputs.triggered == 'true'
       shell: bash
       env:
         INPUT_TAGS: ${{ inputs.tags }}
@@ -319,7 +319,7 @@ runs:
 
     - name: Build and push ${{ inputs.package }} Docker image
       id: build_and_push
-      if: steps.context_check.outputs.skip != 'true' && steps.build.outputs.triggered == 'true'
+      if: steps.build.outputs.triggered == 'true'
       uses: docker/build-push-action@v6
       with:
         context: ${{ inputs.build_context || inputs.package }}
@@ -334,7 +334,7 @@ runs:
         secrets: ${{ inputs.secrets }}
 
     - name: Install Syft
-      if: steps.context_check.outputs.skip != 'true' && steps.build.outputs.triggered == 'true' && inputs.sbom == 'true'
+      if: steps.build.outputs.triggered == 'true' && inputs.sbom == 'true'
       shell: bash
       run: |
         # Install Syft
@@ -342,7 +342,7 @@ runs:
 
     - name: Generate SBOM
       id: sbom
-      if: steps.context_check.outputs.skip != 'true' && steps.build.outputs.triggered == 'true' && inputs.sbom == 'true'
+      if: steps.build.outputs.triggered == 'true' && inputs.sbom == 'true'
       continue-on-error: true
       shell: bash
       run: |
@@ -391,7 +391,7 @@ runs:
 
     - name: Upload SBOMs
       uses: actions/upload-artifact@v6
-      if: steps.context_check.outputs.skip != 'true' && steps.build.outputs.triggered == 'true' && inputs.sbom == 'true' && steps.sbom.outputs.sbom_files_exist == 'true'
+      if: steps.build.outputs.triggered == 'true' && inputs.sbom == 'true' && steps.sbom.outputs.sbom_files_exist == 'true'
       continue-on-error: true
       with:
         name: sboms-${{ steps.sbom.outputs.package_sanitized }}-${{ steps.vars.outputs.first_tag }}
@@ -401,7 +401,7 @@ runs:
     - name: Attest
       continue-on-error: true
       id: attest
-      if: steps.context_check.outputs.skip != 'true' && steps.build.outputs.triggered == 'true'
+      if: steps.build.outputs.triggered == 'true'
       uses: actions/attest-build-provenance@v3.1.0
       with:
         subject-name: ghcr.io/${{ steps.vars.outputs.image_path }}
