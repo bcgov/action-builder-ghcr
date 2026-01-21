@@ -122,10 +122,12 @@ runs:
           if [[ "$EVENT_NAME" == "pull_request_target" && "$IS_FORK" == "false" ]]; then
             echo "Skipping: pull_request_target for same-repo PR (pull_request handles this)"
             echo "skip=true" >> $GITHUB_OUTPUT
+            echo "skip_reason=same_repo_pull_request_target" >> $GITHUB_OUTPUT
             exit 0
           elif [[ "$EVENT_NAME" == "pull_request" && "$IS_FORK" == "true" ]]; then
             echo "Skipping: pull_request for fork PR (pull_request_target handles this - fork PRs need pull_request_target for GHCR write permissions)"
             echo "skip=true" >> $GITHUB_OUTPUT
+            echo "skip_reason=fork_pr_pull_request" >> $GITHUB_OUTPUT
             exit 0
           fi
         else
@@ -133,6 +135,7 @@ runs:
         fi
 
         echo "skip=false" >> $GITHUB_OUTPUT
+        echo "skip_reason=none" >> $GITHUB_OUTPUT
 
         # If package matches repo name, use simpler image_path
         if [ "${INPUT_PACKAGE,,}" = "${CONTEXT_REPO,,}" ]; then
