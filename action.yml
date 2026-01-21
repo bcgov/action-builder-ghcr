@@ -104,16 +104,20 @@ runs:
         set -euo pipefail
 
         # Check for skip/fail conditions based on event and fork status
-        HEAD_REPO="${{ github.event.pull_request.head.repo.full_name }}"
-        IS_FORK=$([[ "$HEAD_REPO" != "${{ github.repository }}" ]] && echo true || echo false)
+        # Only check fork status for PR events (pull_request or pull_request_target)
+        EVENT_NAME="${{ github.event_name }}"
+        if [[ "$EVENT_NAME" == "pull_request" || "$EVENT_NAME" == "pull_request_target" ]]; then
+          HEAD_REPO="${{ github.event.pull_request.head.repo.full_name }}"
+          IS_FORK=$([[ -n "$HEAD_REPO" && "$HEAD_REPO" != "${{ github.repository }}" ]] && echo true || echo false)
 
-        if [[ "${{ github.event_name }}" == "pull_request_target" && "$IS_FORK" == "false" ]]; then
-          echo "Skipping: pull_request_target for same-repo PR (pull_request handles this)"
-          echo "skip=true" >> $GITHUB_OUTPUT
-          exit 0
-        elif [[ "${{ github.event_name }}" == "pull_request" && "$IS_FORK" == "true" ]]; then
-          echo "::error::Fork PR detected under 'pull_request' event. No GHCR write permissions. Add 'pull_request_target:' to your workflow triggers for fork support."
-          exit 1
+          if [[ "$EVENT_NAME" == "pull_request_target" && "$IS_FORK" == "false" ]]; then
+            echo "Skipping: pull_request_target for same-repo PR (pull_request handles this)"
+            echo "skip=true" >> $GITHUB_OUTPUT
+            exit 0
+          elif [[ "$EVENT_NAME" == "pull_request" && "$IS_FORK" == "true" ]]; then
+            echo "::error::Fork PR detected under 'pull_request' event. No GHCR write permissions. Add 'pull_request_target:' to your workflow triggers for fork support."
+            exit 1
+          fi
         fi
 
         echo "skip=false" >> $GITHUB_OUTPUT
