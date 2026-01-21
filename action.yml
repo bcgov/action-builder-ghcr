@@ -92,7 +92,7 @@ outputs:
 runs:
   using: composite
   steps:
-    # Initialize variables and check for skip conditions
+    # Initialize variables and check for skip conditions.
     - id: vars
       shell: bash
       env:
