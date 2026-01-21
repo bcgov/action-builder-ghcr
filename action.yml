@@ -144,7 +144,7 @@ runs:
     #     current branch against another repository's branch is not meaningful in this context.
     - id: diff
       if: inputs.repository == github.repository && steps.vars.outputs.skip != 'true'
-      uses: bcgov/action-diff-triggers@v1.0.0
+      uses: bcgov/action-diff-triggers@a4753d53614cac4eb417cd35b05e0e401a76fc9d # v1.0.0
       with:
         triggers: ${{ inputs.triggers }}
         ref: ${{ inputs.diff_branch }}
@@ -216,7 +216,7 @@ runs:
     - name: Prepare Container Metadata tags
       id: meta
       if: steps.build.outputs.triggered == 'true' && inputs.metadata_tags == 'true'
-      uses: docker/metadata-action@v5
+      uses: docker/metadata-action@c299e40c65443455700f0fdfc63efafe5b349051 # v5
       with:
         images: ${{ steps.vars.outputs.image_name }}
         flavor: ${{ inputs.metadata_flavor }}

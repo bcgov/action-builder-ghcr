@@ -149,9 +149,38 @@ jobs:
           fi
           echo "Metadata tags test passed!"
 
+  # Test fork detection: same-repo PR under pull_request_target should skip
+  # This verifies the skip logic for redundant pull_request_target events with same-repo PRs.
+  # Note: Full fork PR testing (actual fork repositories) requires external fork PRs,
+  # which cannot be tested in this same-repo workflow.
+  fork-detection-skip:
+    name: Fork Detection - Skip Same-Repo PR
+    if: github.event_name == 'pull_request_target'
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v6
+      - id: fork-skip
+        uses: ./
+        with:
+          package: frontend
+          build_context: frontend
+          repository: bcgov/quickstart-openshift
+          tags: ${{ github.event.number }}-fork-skip
+          tag_fallback: test
+          triggers: ('frontend/')
+
+      - name: Verify skip behavior
+        run: |
+          if [ "${{ steps.fork-skip.outputs.triggered }}" != "false" ]; then
+            echo "Error! Expected triggered=false for same-repo PR under pull_request_target"
+            echo "Outputs: ${{ toJSON(steps.fork-skip.outputs) }}"
+            exit 1
+          fi
+          echo "✓ Correctly skipped same-repo PR under pull_request_target"
+
   results:
     name: PR Results
-    needs: [advanced, build, no-attestation, single-package, metadata-tags]
+    needs: [advanced, build, no-attestation, single-package, metadata-tags, fork-detection-skip]
     if: always()
     runs-on: ubuntu-24.04
     steps:
