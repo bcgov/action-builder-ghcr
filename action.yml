@@ -109,9 +109,15 @@ runs:
         # - pull_request + fork: Skip (let pull_request_target handle it)
         # - pull_request_target + same-repo: Skip (let pull_request handle it)
         EVENT_NAME="${{ github.event_name }}"
+        echo "::debug::Event name: $EVENT_NAME"
+        echo "::debug::Base repository: ${{ github.repository }}"
+        
         if [[ "$EVENT_NAME" == "pull_request" || "$EVENT_NAME" == "pull_request_target" ]]; then
           HEAD_REPO="${{ github.event.pull_request.head.repo.full_name }}"
+          echo "::debug::Head repository: ${HEAD_REPO:-<empty>}"
+          echo "::debug::PR number: ${{ github.event.pull_request.number }}"
           IS_FORK=$([[ -n "$HEAD_REPO" && "$HEAD_REPO" != "${{ github.repository }}" ]] && echo true || echo false)
+          echo "::debug::Is fork: $IS_FORK"
 
           if [[ "$EVENT_NAME" == "pull_request_target" && "$IS_FORK" == "false" ]]; then
             echo "Skipping: pull_request_target for same-repo PR (pull_request handles this)"
@@ -122,6 +128,8 @@ runs:
             echo "skip=true" >> $GITHUB_OUTPUT
             exit 0
           fi
+        else
+          echo "::debug::Not a PR event, skipping fork detection"
         fi
 
         echo "skip=false" >> $GITHUB_OUTPUT
@@ -219,6 +227,21 @@ runs:
       with:
         repository: ${{ github.event.pull_request.head.repo.full_name || github.repository }}
         ref: ${{ github.event.pull_request.head.sha || github.ref }}
+
+    # Debug checkout information for fork PRs
+    - name: Debug checkout info
+      shell: bash
+      if: steps.build.outputs.triggered == 'true' && inputs.repository == github.repository
+      run: |
+        echo "::debug::Checkout repository used: ${{ github.event.pull_request.head.repo.full_name || github.repository }}"
+        echo "::debug::Checkout ref used: ${{ github.event.pull_request.head.sha || github.ref }}"
+        echo "::debug::Head repo full_name: ${{ github.event.pull_request.head.repo.full_name }}"
+        echo "::debug::Head SHA: ${{ github.event.pull_request.head.sha }}"
+        echo "::debug::Base repository: ${{ github.repository }}"
+        echo "::debug::Base ref: ${{ github.ref }}"
+        echo "::debug::Current working directory: $(pwd)"
+        echo "::debug::Git remote -v:"
+        git remote -v || echo "::debug::Git not available or not a git repo"
 
     - name: Set up Docker Buildx
       if: steps.build.outputs.triggered == 'true'
