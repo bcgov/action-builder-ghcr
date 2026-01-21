@@ -26,7 +26,7 @@ jobs:
           package: backend
           repository: bcgov/quickstart-openshift
 
-      - if: steps.build.outputs.triggered != 'false'
+      - if: steps.build.outputs.skip != 'true' && steps.build.outputs.triggered != 'false'
         run: |
           # Verify outputs
           echo "Outputs: ${{ toJSON(steps.build.outputs) }}"
@@ -55,7 +55,7 @@ jobs:
           tag_fallback: test
           triggers: ('frontend/')
 
-      - if: steps.no-attestation.outputs.triggered != 'false'
+      - if: steps.no-attestation.outputs.skip != 'true' && steps.no-attestation.outputs.triggered != 'false'
         run: |
           # Verify outputs
           echo "Outputs: ${{ toJSON(steps.no-attestation.outputs) }}"
@@ -99,7 +99,7 @@ jobs:
             ${{ github.event.number }}
             single-package-test
 
-      - if: steps.single-package.outputs.triggered != 'false'
+      - if: steps.single-package.outputs.skip != 'true' && steps.single-package.outputs.triggered != 'false'
         run: |
           # Verify outputs
           echo "Outputs: ${{ toJSON(steps.single-package.outputs) }}"
@@ -134,7 +134,7 @@ jobs:
             type=ref,event=pr
             type=sha
 
-      - if: steps.metadata-tags.outputs.triggered != 'false'
+      - if: steps.metadata-tags.outputs.skip != 'true' && steps.metadata-tags.outputs.triggered != 'false'
         run: |
           # Verify outputs including labels
           echo "Outputs: ${{ toJSON(steps.metadata-tags.outputs) }}"
