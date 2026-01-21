@@ -105,6 +105,9 @@ runs:
 
         # Check for skip/fail conditions based on event and fork status
         # Only check fork status for PR events (pull_request or pull_request_target)
+        # This handles duplication when both triggers are present:
+        # - pull_request + fork: Skip (let pull_request_target handle it)
+        # - pull_request_target + same-repo: Skip (let pull_request handle it)
         EVENT_NAME="${{ github.event_name }}"
         if [[ "$EVENT_NAME" == "pull_request" || "$EVENT_NAME" == "pull_request_target" ]]; then
           HEAD_REPO="${{ github.event.pull_request.head.repo.full_name }}"
@@ -115,10 +118,9 @@ runs:
             echo "skip=true" >> $GITHUB_OUTPUT
             exit 0
           elif [[ "$EVENT_NAME" == "pull_request" && "$IS_FORK" == "true" ]]; then
-            echo "::error::Fork PR detected under 'pull_request' event. Fork PRs cannot write to GHCR with 'pull_request' event permissions."
-            echo "::error::Solution: Use 'pull_request_target:' trigger instead of (or in addition to) 'pull_request:' in your workflow."
-            echo "::error::Note: If your workflow has both triggers, the 'pull_request' job will fail (expected), but the 'pull_request_target' job should succeed."
-            exit 1
+            echo "Skipping: pull_request for fork PR (pull_request_target handles this - fork PRs need pull_request_target for GHCR write permissions)"
+            echo "skip=true" >> $GITHUB_OUTPUT
+            exit 0
           fi
         fi
 
@@ -141,9 +143,9 @@ runs:
 
     # Send triggers to diff action
     # Fork PRs:
-    #   - This composite action expects fork PRs to run under the `pull_request_target` event.
-    #   - The `vars` step above detects fork PRs and fails fast if they run under `pull_request`
-    #     (forks do not have GHCR write permissions under `pull_request`).
+    #   - Fork PRs require `pull_request_target` event for GHCR write permissions.
+    #   - The `vars` step above detects fork PRs and skips if they run under `pull_request`
+    #     (allowing `pull_request_target` to handle them when both triggers are present).
     #   - When the caller configures `pull_request_target` for fork PRs, bcgov/action-diff-triggers@v1.0.0+
     #     can automatically handle diff computation for those fork PRs.
     # External repos:
