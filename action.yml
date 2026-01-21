@@ -430,7 +430,13 @@ runs:
       run: |
         echo "---- Build Summary ----"
         if [ "${{ steps.vars.outputs.skip }}" == "true" ]; then
-          echo "status: SKIPPED (redundant pull_request_target for same-repo PR)"
+          if [ "${{ steps.vars.outputs.skip_reason }}" == "fork_pr_pull_request" ]; then
+            echo "status: SKIPPED: Fork PR under pull_request (pull_request_target will handle this)"
+          elif [ "${{ steps.vars.outputs.skip_reason }}" == "same_repo_pull_request_target" ]; then
+            echo "status: SKIPPED: Same-repo PR under pull_request_target (pull_request handles this)"
+          else
+            echo "status: SKIPPED: Unknown reason"
+          fi
           echo "triggered: false"
         elif [ "${{ steps.build.outputs.triggered }}" == "true" ]; then
           echo "triggered: true"
