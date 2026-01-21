@@ -146,6 +146,8 @@ runs:
     # External repos:
     #   - Skip for external repo builds (`inputs.repository != github.repository`) because diffing the
     #     current branch against another repository's branch is not meaningful in this context.
+    # Note: The composite action's `diff_branch` input is passed through as the `ref` parameter
+    # for bcgov/action-diff-triggers (v1.0.0+ uses `ref` instead of `diff_branch`).
     - id: diff
       if: inputs.repository == github.repository && steps.vars.outputs.skip != 'true'
       uses: bcgov/action-diff-triggers@a4753d53614cac4eb417cd35b05e0e401a76fc9d # v1.0.0

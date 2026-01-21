@@ -186,4 +186,7 @@ jobs:
     steps:
       - if: contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled')
         run: echo "At least one job has failed or was cancelled." && exit 1
+      - if: needs.fork-detection-skip.result == 'skipped' && github.event_name == 'pull_request'
+        run: |
+          echo "Note: fork-detection-skip job was skipped (only runs on pull_request_target events)"
       - run: echo "Success!"
