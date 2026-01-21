@@ -132,11 +132,12 @@ runs:
         echo "image_name=ghcr.io/${image_path,,}" >> $GITHUB_OUTPUT
 
         # Extract first tag for artifact naming (sanitized for artifact name compatibility)
+        # Fallback to 'artifact' if sanitized tag is empty
         first_tag=$(printf '%s\n' "${INPUT_TAGS}" | grep -v '^$' | head -n 1 | tr '[:upper:]' '[:lower:]' | tr -cd '[:alnum:]._-')
         first_tag="${first_tag:-artifact}"
         echo "first_tag=${first_tag}" >> $GITHUB_OUTPUT
 
-    # Send triggers to diff action.
+    # Send triggers to diff action
     # Fork PRs:
     #   - This composite action expects fork PRs to run under the `pull_request_target` event.
     #   - The `vars` step above detects fork PRs and fails fast if they run under `pull_request`
