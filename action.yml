@@ -103,8 +103,8 @@ runs:
         # Check contexts and set variables
         set -euo pipefail
 
-        # Check for skip/fail conditions based on event and fork status
-        # Only check fork status for PR events (pull_request or pull_request_target)
+        # Check for skip/fail conditions based on event and fork status.
+        # Only check fork status for PR events (pull_request or pull_request_target).
         # This handles duplication when both triggers are present:
         # - pull_request + fork: Skip (let pull_request_target handle it)
         # - pull_request_target + same-repo: Skip (let pull_request handle it)
@@ -146,8 +146,8 @@ runs:
         echo "image_path=${image_path,,}" >> $GITHUB_OUTPUT
         echo "image_name=ghcr.io/${image_path,,}" >> $GITHUB_OUTPUT
 
-        # Extract first tag for artifact naming (sanitized for artifact name compatibility)
-        # Fallback to 'artifact' if sanitized tag is empty
+        # Extract first tag for artifact naming (sanitized for artifact name compatibility).
+        # Fallback to 'artifact' if sanitized tag is empty.
         first_tag=$(printf '%s\n' "${INPUT_TAGS}" | grep -v '^$' | head -n 1 | tr '[:upper:]' '[:lower:]' | tr -cd '[:alnum:]._-')
         first_tag="${first_tag:-artifact}"
         echo "first_tag=${first_tag}" >> $GITHUB_OUTPUT
