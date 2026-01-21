@@ -181,7 +181,7 @@ jobs:
   results:
     name: PR Results
     needs: [advanced, build, no-attestation, single-package, metadata-tags, fork-detection-skip]
-    if: always() && (needs.fork-detection-skip.result == 'success' || needs.fork-detection-skip.result == 'skipped')
+    if: always() && needs.fork-detection-skip.result != 'failure'
     runs-on: ubuntu-24.04
     steps:
       - if: contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled')

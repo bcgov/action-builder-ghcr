@@ -100,7 +100,7 @@ runs:
         CONTEXT_REPO: ${{ github.event.repository.name }}
         INPUT_TAGS: ${{ inputs.tags }}
       run: |
-        # Check contexts and set variables
+        # Check contexts and set variables.
         set -euo pipefail
 
         # Check for skip/fail conditions based on event and fork status.
@@ -113,10 +113,16 @@ runs:
         echo "::debug::Base repository: ${{ github.repository }}"
         
         if [[ "$EVENT_NAME" == "pull_request" || "$EVENT_NAME" == "pull_request_target" ]]; then
+          # Handle deleted forks: github.event.pull_request.head.repo.full_name can be null
           HEAD_REPO="${{ github.event.pull_request.head.repo.full_name }}"
           echo "::debug::Head repository: ${HEAD_REPO:-<empty>}"
           echo "::debug::PR number: ${{ github.event.pull_request.number }}"
-          IS_FORK=$([[ -n "$HEAD_REPO" && "$HEAD_REPO" != "${{ github.repository }}" ]] && echo true || echo false)
+          # Check if HEAD_REPO is null, empty, or equals base repo to determine fork status
+          if [[ -z "${HEAD_REPO}" || "${HEAD_REPO}" == "null" || "${HEAD_REPO}" == "${{ github.repository }}" ]]; then
+            IS_FORK=false
+          else
+            IS_FORK=true
+          fi
           echo "::debug::Is fork: $IS_FORK"
 
           if [[ "$EVENT_NAME" == "pull_request_target" && "$IS_FORK" == "false" ]]; then
@@ -234,12 +240,14 @@ runs:
         # No ref specified = default branch of that repo
 
     # Checkout code for building - same repo PR (use PR head for fork support)
+    # Handle deleted forks: if head.repo.full_name is null, fall back to base repo
     - name: Checkout PR head
       if: steps.build.outputs.triggered == 'true' && inputs.repository == github.repository
       uses: actions/checkout@v6
       with:
         repository: ${{ github.event.pull_request.head.repo.full_name || github.repository }}
         ref: ${{ github.event.pull_request.head.sha || github.ref }}
+      continue-on-error: true
 
     # Debug checkout information for fork PRs
     - name: Debug checkout info
@@ -362,7 +370,18 @@ runs:
         set +e -u
 
         # Install Syft
-        curl -sSfL https://raw.githubusercontent.com/anchore/syft/main/install.sh | sh -s -- -b /usr/local/bin
+        if ! curl -sSfL https://raw.githubusercontent.com/anchore/syft/main/install.sh | sh -s -- -b /usr/local/bin; then
+          echo "::warning::Syft installation failed. SBOM generation will be skipped."
+          echo "sbom_files_exist=false" >> $GITHUB_OUTPUT
+          exit 0
+        fi
+
+        # Verify Syft is available
+        if ! command -v syft >/dev/null 2>&1; then
+          echo "::warning::Syft is not available after installation. SBOM generation will be skipped."
+          echo "sbom_files_exist=false" >> $GITHUB_OUTPUT
+          exit 0
+        fi
 
         IMAGE="ghcr.io/${{ steps.vars.outputs.image_path }}@${{ steps.build_and_push.outputs.digest }}"
         PACKAGE_SANITIZED=$(echo "${{ inputs.package }}" | tr '/:' '-' | tr -d ' ')
