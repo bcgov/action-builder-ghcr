@@ -132,8 +132,16 @@ runs:
         first_tag="${first_tag:-artifact}"
         echo "first_tag=${first_tag}" >> $GITHUB_OUTPUT
 
-    # Send triggers to diff action (handles fork PRs automatically in v1.0.0+)
-    # Skip for external repo builds - diff makes no sense when building a different repo
+    # Send triggers to diff action.
+    # Fork PRs:
+    #   - This composite action expects fork PRs to run under the `pull_request_target` event.
+    #   - The `vars` step above detects fork PRs and fails fast if they run under `pull_request`
+    #     (forks do not have GHCR write permissions under `pull_request`).
+    #   - When the caller configures `pull_request_target` for fork PRs, bcgov/action-diff-triggers@v1.0.0+
+    #     can automatically handle diff computation for those fork PRs.
+    # External repos:
+    #   - Skip for external repo builds (`inputs.repository != github.repository`) because diffing the
+    #     current branch against another repository's branch is not meaningful in this context.
     - id: diff
       if: inputs.repository == github.repository && steps.vars.outputs.skip != 'true'
       uses: bcgov/action-diff-triggers@v1.0.0
