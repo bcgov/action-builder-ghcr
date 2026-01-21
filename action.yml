@@ -177,6 +177,13 @@ runs:
       shell: bash
       run: |
         # Check for builds
+        echo "::debug::Build decision logic:"
+        echo "::debug::  Input repository: ${{ inputs.repository }}"
+        echo "::debug::  GitHub repository: ${{ github.repository }}"
+        echo "::debug::  Diff triggered: ${{ steps.diff.outputs.triggered }}"
+        echo "::debug::  Tag fallback: ${{ inputs.tag_fallback }}"
+        echo "::debug::  Fallback URL: ${URL_FALLBACK}"
+        
         triggered=true
         if [ "${{ inputs.repository }}" != "${{ github.repository }}" ]; then
           echo "Build triggered. External repository provided (diff skipped)."
@@ -184,12 +191,13 @@ runs:
           echo "Build triggered. Used bcgov/action-diff-triggers."
         elif [ -z "${{ inputs.tag_fallback }}" ]; then
           echo "Build triggered. No tag_fallback provided."
-        elif [[ ! $(docker manifest inspect "${URL_FALLBACK}") ]]; then
+        elif [[ ! $(docker manifest inspect "${URL_FALLBACK}" 2>/dev/null) ]]; then
           echo "Build triggered. Fallback tag (tag_fallback) not usable."
         else
-          echo "Container build not required"
+          echo "Container build not required - will retag existing image"
           triggered=false
         fi
+        echo "::debug::Final build decision: triggered=${triggered}"
         echo "triggered=${triggered}" >> $GITHUB_OUTPUT
 
     # Log in to GHCR (for both retag and build operations)
