@@ -8,15 +8,16 @@ concurrency:
   group: ${{ github.event_name }}-${{ github.event.pull_request.number }}
   cancel-in-progress: true
 
-permissions:
-  attestations: write
-  id-token: write
-  packages: write
+permissions: {}
 
 jobs:
   # QuickStart apps build from the same dirs as their Dockerfiles
   build:
     name: Build
+    permissions:
+      attestations: write
+      id-token: write
+      packages: write
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v6
@@ -67,6 +68,10 @@ jobs:
   # FOM apps build from repo root, above their Dockerfiles (extra params)
   advanced:
     name: Advanced
+    permissions:
+      attestations: write
+      id-token: write
+      packages: write
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v6
@@ -85,6 +90,10 @@ jobs:
   # Test single-package repo format (no package in path)
   single-package:
     name: Single Package
+    permissions:
+      attestations: write
+      id-token: write
+      packages: write
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v6
@@ -111,6 +120,10 @@ jobs:
   # Test metadata tags feature
   metadata-tags:
     name: Metadata Tags
+    permissions:
+      attestations: write
+      id-token: write
+      packages: write
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v6
@@ -156,6 +169,10 @@ jobs:
   fork-detection-skip:
     name: Fork Detection - Skip Same-Repo PR
     if: github.event_name == 'pull_request_target'
+    permissions:
+      attestations: write
+      id-token: write
+      packages: write
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v6
