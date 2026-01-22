@@ -5,7 +5,7 @@ on:
   pull_request_target:
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.event.pull_request.number || github.ref }}
+  group: ${{ github.event_name }}-${{ github.event.pull_request.number }}
   cancel-in-progress: true
 
 permissions:
@@ -180,7 +180,15 @@ jobs:
 
   results:
     name: PR Results
-    needs: [advanced, build, no-attestation, single-package, metadata-tags, fork-detection-skip]
+    needs:
+      [
+        advanced,
+        build,
+        no-attestation,
+        single-package,
+        metadata-tags,
+        fork-detection-skip,
+      ]
     if: always() && needs.fork-detection-skip.result != 'failure'
     runs-on: ubuntu-24.04
     steps:
