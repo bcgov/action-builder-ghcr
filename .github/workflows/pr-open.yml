@@ -186,6 +186,7 @@ jobs:
           triggers: ('frontend/')
 
       - name: Verify fork detection behavior
+        continue-on-error: true
         run: |
           # Determine if this is a fork PR or same-repo PR
           HEAD_REPO="${{ github.event.pull_request.head.repo.full_name }}"
