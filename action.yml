@@ -240,14 +240,12 @@ runs:
         # No ref specified = default branch of that repo
 
     # Checkout code for building - same repo PR (use PR head for fork support)
-    # Handle deleted forks: if head.repo.full_name is null, fall back to base repo
     - name: Checkout PR head
       if: steps.build.outputs.triggered == 'true' && inputs.repository == github.repository
       uses: actions/checkout@v6
       with:
         repository: ${{ github.event.pull_request.head.repo.full_name || github.repository }}
         ref: ${{ github.event.pull_request.head.sha || github.ref }}
-      continue-on-error: true
 
     # Debug checkout information for fork PRs
     - name: Debug checkout info
@@ -370,18 +368,7 @@ runs:
         set +e -u
 
         # Install Syft
-        if ! curl -sSfL https://raw.githubusercontent.com/anchore/syft/main/install.sh | sh -s -- -b /usr/local/bin; then
-          echo "::warning::Syft installation failed. SBOM generation will be skipped."
-          echo "sbom_files_exist=false" >> $GITHUB_OUTPUT
-          exit 0
-        fi
-
-        # Verify Syft is available
-        if ! command -v syft >/dev/null 2>&1; then
-          echo "::warning::Syft is not available after installation. SBOM generation will be skipped."
-          echo "sbom_files_exist=false" >> $GITHUB_OUTPUT
-          exit 0
-        fi
+        curl -sSfL https://raw.githubusercontent.com/anchore/syft/main/install.sh | sh -s -- -b /usr/local/bin
 
         IMAGE="ghcr.io/${{ steps.vars.outputs.image_path }}@${{ steps.build_and_push.outputs.digest }}"
         PACKAGE_SANITIZED=$(echo "${{ inputs.package }}" | tr '/:' '-' | tr -d ' ')
