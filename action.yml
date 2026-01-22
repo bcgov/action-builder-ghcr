@@ -143,6 +143,30 @@ runs:
           echo "::debug::Not a PR event, skipping fork detection"
         fi
 
+        # Validate tags for fork PRs - prevent use of protected tags
+        if [[ "${IS_FORK:-false}" == "true" && -n "${INPUT_TAGS:-}" ]]; then
+          # Protected tags that fork PRs cannot use
+          protected_tags=("latest" "test" "prod" "production" "stable")
+          
+          # Check each tag in the input
+          while IFS= read -r tag; do
+            # Skip empty lines
+            [[ -z "$tag" ]] && continue
+            
+            # Normalize tag (lowercase, strip whitespace)
+            normalized_tag=$(echo "$tag" | tr '[:upper:]' '[:lower:]' | tr -d '[:space:]')
+            
+            # Check if tag matches any protected tag
+            for protected in "${protected_tags[@]}"; do
+              if [[ "$normalized_tag" == "$protected" ]]; then
+                echo "::error::Fork PRs cannot use protected tag: '$tag'. Protected tags: ${protected_tags[*]}"
+                echo "::error::Fork PRs should use PR-specific tags (e.g., pr-${{ github.event.pull_request.number }})"
+                exit 1
+              fi
+            done
+          done <<< "$INPUT_TAGS"
+        fi
+
         echo "skip=false" >> $GITHUB_OUTPUT
         echo "skip_reason=none" >> $GITHUB_OUTPUT
 
