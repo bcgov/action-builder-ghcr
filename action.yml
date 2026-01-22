@@ -42,9 +42,6 @@ inputs:
   repository:
     description: Non-default repo to clone
     default: ${{ github.repository }}
-  tag:
-    description: Deprecated input; use tags instead
-    deprecationMessage: "Input 'tag' is deprecated and will be removed in a future release. Please use 'tags' instead."
   token:
     description: Specify token (GH or PAT), instead of inheriting one from the calling workflow
     default: ${{ github.token }}
@@ -82,7 +79,7 @@ outputs:
 
   triggered:
     description: Did a deployment trigger?  [true|false]
-    value: ${{ steps.diff.outputs.triggered }}
+    value: ${{ steps.vars.outputs.skip == 'true' && 'false' || steps.build.outputs.triggered }}
 
   labels:
     description: "Generated OCI labels from metadata-action (only when metadata_tags is enabled)"
@@ -95,6 +92,7 @@ outputs:
 runs:
   using: composite
   steps:
+    # Initialize variables and check for skip conditions.
     - id: vars
       shell: bash
       env:
@@ -102,14 +100,51 @@ runs:
         CONTEXT_REPO: ${{ github.event.repository.name }}
         INPUT_TAGS: ${{ inputs.tags }}
       run: |
-        # Process inputs and set variables
+        # Check contexts and set variables.
         set -euo pipefail
 
-        # Early exit for deprecated input
-        if [ -n "${{ inputs.tag }}" ]; then
-          echo "Input 'tag' is deprecated. Please use 'tags' instead."
-          exit 1
+        # Check for skip/fail conditions based on event and fork status.
+        # Only check fork status for PR events (pull_request or pull_request_target).
+        # This handles duplication when both triggers are present:
+        # - pull_request + fork: Skip (let pull_request_target handle it)
+        # - pull_request_target + same-repo: Skip (let pull_request handle it)
+        EVENT_NAME="${{ github.event_name }}"
+        echo "::debug::Event name: $EVENT_NAME"
+        echo "::debug::Base repository: ${{ github.repository }}"
+        
+        if [[ "$EVENT_NAME" == "pull_request" || "$EVENT_NAME" == "pull_request_target" ]]; then
+          # Handle deleted forks: github.event.pull_request.head.repo.full_name can be null
+          HEAD_REPO="${{ github.event.pull_request.head.repo.full_name }}"
+          echo "::debug::Head repository: ${HEAD_REPO:-<empty>}"
+          echo "::debug::PR number: ${{ github.event.pull_request.number }}"
+          # Check if HEAD_REPO is null, empty, or equals base repo to determine fork status
+          if [[ -z "${HEAD_REPO}" || "${HEAD_REPO}" == "null" || "${HEAD_REPO}" == "${{ github.repository }}" ]]; then
+            IS_FORK=false
+          else
+            IS_FORK=true
+          fi
+          echo "::debug::Is fork: $IS_FORK"
+
+          if [[ "$EVENT_NAME" == "pull_request_target" && "$IS_FORK" == "false" ]]; then
+            echo "Skipping: pull_request_target for same-repo PR (pull_request handles this)"
+            echo "skip=true" >> $GITHUB_OUTPUT
+            echo "skip_reason=same_repo_pull_request_target" >> $GITHUB_OUTPUT
+            echo "triggered=false" >> $GITHUB_OUTPUT
+            exit 0
+          elif [[ "$EVENT_NAME" == "pull_request" && "$IS_FORK" == "true" ]]; then
+            echo "Skipping: pull_request for fork PR (pull_request_target handles this - fork PRs need pull_request_target for GHCR write permissions)"
+            echo "::notice::Fork PR detected. Ensure your workflow has 'pull_request_target:' trigger configured for fork PR support."
+            echo "skip=true" >> $GITHUB_OUTPUT
+            echo "skip_reason=fork_pr_pull_request" >> $GITHUB_OUTPUT
+            echo "triggered=false" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+        else
+          echo "::debug::Not a PR event, skipping fork detection"
         fi
+
+        echo "skip=false" >> $GITHUB_OUTPUT
+        echo "skip_reason=none" >> $GITHUB_OUTPUT
 
         # If package matches repo name, use simpler image_path
         if [ "${INPUT_PACKAGE,,}" = "${CONTEXT_REPO,,}" ]; then
@@ -120,61 +155,77 @@ runs:
         echo "image_path=${image_path,,}" >> $GITHUB_OUTPUT
         echo "image_name=ghcr.io/${image_path,,}" >> $GITHUB_OUTPUT
 
-        # Filter out empty lines from tags input (used for both metadata_tags and first_tag)
-        filtered_tags=$(printf '%s\n' "${INPUT_TAGS}" | grep -v '^$' || true)
-
-        # Convert multiline tags to metadata-action format (type=raw,value=tag)
-        # Each line becomes: type=raw,value=<tag>
-        if [ -n "${filtered_tags}" ]; then
-          metadata_tags=$(printf '%s\n' "${filtered_tags}" | tr '[:upper:]' '[:lower:]' | sed 's/^/type=raw,value=/')
-          echo "metadata_tags<<EOF" >> $GITHUB_OUTPUT
-          echo "${metadata_tags}" >> $GITHUB_OUTPUT
-          echo "EOF" >> $GITHUB_OUTPUT
-        fi
-
-        # Extract first tag for artifact naming (sanitized for artifact name compatibility)
-        # Artifact names can contain: letters, numbers, hyphens, underscores, and periods
-        if [ -n "${filtered_tags}" ]; then
-          first_tag=$(printf '%s\n' "${filtered_tags}" | head -n 1 | tr '[:upper:]' '[:lower:]' | tr -cd '[:alnum:]._-')
-        fi
-        # Fallback to 'artifact' if sanitized tag is empty
+        # Extract first tag for artifact naming (sanitized for artifact name compatibility).
+        # Fallback to 'artifact' if sanitized tag is empty.
+        first_tag=$(printf '%s\n' "${INPUT_TAGS}" | grep -v '^$' | head -n 1 | tr '[:upper:]' '[:lower:]' | tr -cd '[:alnum:]._-')
         first_tag="${first_tag:-artifact}"
         echo "first_tag=${first_tag}" >> $GITHUB_OUTPUT
 
     # Send triggers to diff action
+    # Fork PRs:
+    #   - Fork PRs require `pull_request_target` event for GHCR write permissions.
+    #   - The `vars` step above detects fork PRs and skips if they run under `pull_request`
+    #     (allowing `pull_request_target` to handle them when both triggers are present).
+    #   - When the caller configures `pull_request_target` for fork PRs, bcgov/action-diff-triggers@v1.0.0+
+    #     automatically detects fork PR context from github.event.pull_request and handles diff computation
+    #     correctly by comparing the fork's head branch against the base repository's target branch.
+    # External repos:
+    #   - Skip for external repo builds (`inputs.repository != github.repository`) because diffing the
+    #     current branch against another repository's branch is not meaningful in this context.
+    # Note: The composite action's `diff_branch` input is passed through as the `ref` parameter
+    # for bcgov/action-diff-triggers (v1.0.0+ uses `ref` instead of `diff_branch`).
     - id: diff
-      uses: bcgov/action-diff-triggers@0d193029efd26c76aeacaa84aba3328de8198370 # v0.2.0
+      if: inputs.repository == github.repository && steps.vars.outputs.skip != 'true'
+      uses: bcgov/action-diff-triggers@a4753d53614cac4eb417cd35b05e0e401a76fc9d # v1.0.0
       with:
         triggers: ${{ inputs.triggers }}
-        diff_branch: ${{ inputs.diff_branch }}
+        ref: ${{ inputs.diff_branch }}
 
     # Check if a build is required (steps.build.outputs.triggered=true|false)
     - name: Check for builds
+      if: steps.vars.outputs.skip != 'true'
       env:
         URL_FALLBACK: ghcr.io/${{ steps.vars.outputs.image_path }}:${{ inputs.tag_fallback }}
       id: build
       shell: bash
       run: |
         # Check for builds
+        echo "::debug::Build decision logic:"
+        echo "::debug::  Input repository: ${{ inputs.repository }}"
+        echo "::debug::  GitHub repository: ${{ github.repository }}"
+        echo "::debug::  Diff triggered: ${{ steps.diff.outputs.triggered }}"
+        echo "::debug::  Tag fallback: ${{ inputs.tag_fallback }}"
+        echo "::debug::  Fallback URL: ${URL_FALLBACK}"
+        
         triggered=true
-        if [ "${{ steps.diff.outputs.triggered }}" == "true" ]; then
+        if [ "${{ inputs.repository }}" != "${{ github.repository }}" ]; then
+          echo "Build triggered. External repository provided (diff skipped)."
+        elif [ "${{ steps.diff.outputs.triggered }}" == "true" ]; then
           echo "Build triggered. Used bcgov/action-diff-triggers."
-        elif [ "${{ inputs.repository }}" != "${{ github.repository }}" ]; then
-          echo "Build triggered.  Override repository provided."
         elif [ -z "${{ inputs.tag_fallback }}" ]; then
-          echo "Build triggered.  No tag_fallback provided."
-        elif [[ ! $(docker manifest inspect "${URL_FALLBACK}") ]]; then
-          echo "Build triggered.  Fallback tag (tag_fallback) not usable."
+          echo "Build triggered. No tag_fallback provided."
+        elif [[ ! $(docker manifest inspect "${URL_FALLBACK}" 2>/dev/null) ]]; then
+          echo "Build triggered. Fallback tag (tag_fallback) not usable."
         else
-          echo "Container build not required"
+          echo "Container build not required - will retag existing image"
           triggered=false
         fi
-        echo "triggered=$triggered" >> $GITHUB_OUTPUT
+        echo "::debug::Final build decision: triggered=${triggered}"
+        echo "triggered=${triggered}" >> $GITHUB_OUTPUT
+
+    # Log in to GHCR (for both retag and build operations)
+    - name: Log in to the Container registry
+      if: steps.vars.outputs.skip != 'true'
+      uses: docker/login-action@v3
+      with:
+        registry: ghcr.io
+        username: ${{ github.actor }}
+        password: ${{ inputs.token }}
 
     # If a build is not required, reuse a previous image
     - name: Recycle/retag Previous Images
       uses: shrink/actions-docker-registry-tag@f04afd0559f66b288586792eb150f45136a927fa # v4
-      if: steps.build.outputs.triggered != 'true'
+      if: steps.vars.outputs.skip != 'true' && steps.build.outputs.triggered != 'true'
       with:
         registry: ghcr.io
         repository: ${{ steps.vars.outputs.image_path }}
@@ -182,21 +233,40 @@ runs:
         tags: |
           ${{ inputs.tags }}
 
-    - uses: actions/checkout@v6
+    # Checkout code for building - external repo (use default branch)
+    - name: Checkout external repository
+      if: steps.build.outputs.triggered == 'true' && inputs.repository != github.repository
+      uses: actions/checkout@v6
       with:
         repository: ${{ inputs.repository }}
+        # No ref specified = default branch of that repo
+
+    # Checkout code for building - same repo PR (use PR head for fork support)
+    - name: Checkout PR head
+      if: steps.build.outputs.triggered == 'true' && inputs.repository == github.repository
+      uses: actions/checkout@v6
+      with:
+        repository: ${{ github.event.pull_request.head.repo.full_name || github.repository }}
+        ref: ${{ github.event.pull_request.head.sha || github.ref }}
+
+    # Debug checkout information for fork PRs
+    - name: Debug checkout info
+      shell: bash
+      if: steps.build.outputs.triggered == 'true' && inputs.repository == github.repository
+      run: |
+        echo "::debug::Checkout repository used: ${{ github.event.pull_request.head.repo.full_name || github.repository }}"
+        echo "::debug::Checkout ref used: ${{ github.event.pull_request.head.sha || github.ref }}"
+        echo "::debug::Head repo full_name: ${{ github.event.pull_request.head.repo.full_name }}"
+        echo "::debug::Head SHA: ${{ github.event.pull_request.head.sha }}"
+        echo "::debug::Base repository: ${{ github.repository }}"
+        echo "::debug::Base ref: ${{ github.ref }}"
+        echo "::debug::Current working directory: $(pwd)"
+        echo "::debug::Git remote -v:"
+        git remote -v || echo "::debug::Git not available or not a git repo"
 
     - name: Set up Docker Buildx
       if: steps.build.outputs.triggered == 'true'
       uses: docker/setup-buildx-action@v3
-
-    - name: Log in to the Container registry
-      if: steps.build.outputs.triggered == 'true'
-      uses: docker/login-action@v3
-      with:
-        registry: ghcr.io
-        username: ${{ github.actor }}
-        password: ${{ inputs.token }}
 
     - name: Prepare Container Metadata tags
       id: meta
@@ -291,13 +361,6 @@ runs:
         build-args: ${{ inputs.build_args }}
         secrets: ${{ inputs.secrets }}
 
-    - name: Install Syft
-      if: steps.build.outputs.triggered == 'true' && inputs.sbom == 'true'
-      shell: bash
-      run: |
-        # Install Syft
-        curl -sSfL https://raw.githubusercontent.com/anchore/syft/main/install.sh | sh -s -- -b /usr/local/bin
-
     - name: Generate SBOM
       id: sbom
       if: steps.build.outputs.triggered == 'true' && inputs.sbom == 'true'
@@ -305,6 +368,9 @@ runs:
       shell: bash
       run: |
         set +e -u
+
+        # Install Syft
+        curl -sSfL https://raw.githubusercontent.com/anchore/syft/main/install.sh | sh -s -- -b /usr/local/bin
 
         IMAGE="ghcr.io/${{ steps.vars.outputs.image_path }}@${{ steps.build_and_push.outputs.digest }}"
         PACKAGE_SANITIZED=$(echo "${{ inputs.package }}" | tr '/:' '-' | tr -d ' ')
@@ -365,55 +431,35 @@ runs:
         subject-name: ghcr.io/${{ steps.vars.outputs.image_path }}
         subject-digest: ${{ steps.build_and_push.outputs.digest }}
 
-    - name: Verify attestations
-      if: steps.build.outputs.triggered == 'true'
-      continue-on-error: true
-      shell: bash
-      run: |
-        echo "::notice::Verifying build attestations..."
-
-        # Verify GitHub attestation
-        if [ "${{ steps.attest.outcome }}" = "success" ]; then
-          echo "✓ GitHub build provenance attestation verified"
-        else
-          echo "⚠ GitHub build provenance attestation failed"
-        fi
-
-        # Verify SBOM files exist (only if SBOM was enabled)
-        if [ "${{ inputs.sbom }}" = "true" ]; then
-          if [ "${{ steps.sbom.outputs.sbom_files_exist }}" = "true" ]; then
-            echo "✓ SBOM files generated successfully"
-            echo "  - CycloneDX: sboms/${{ steps.sbom.outputs.package_sanitized }}-cyclonedx.json"
-            echo "  - SPDX: sboms/${{ steps.sbom.outputs.package_sanitized }}-spdx.json"
-          else
-            echo "⚠ SBOM generation failed"
-          fi
-        fi
-
-        echo "::notice::Attestation verification completed"
-
-    - name: Prompt user to fix permissions
-      if: steps.attest.outcome == 'failure'
-      shell: bash
-      run: |
-        echo "::warning::Attestation skipped due to missing id-token:write and attestations:write permissions. Please update workflow permissions."
-
-    # Action repo needs to be present for cleanup/tests
-    - name: Checkout local repo to make sure action.yml is present
-      if: github.repository != inputs.repository || failure()
+    # Re-checkout after building from external repo (workspace was overwritten)
+    # Only needed when testing action with `uses: ./` and building external repos
+    - name: Checkout local repo
+      if: steps.build.outputs.triggered == 'true' && inputs.repository != github.repository
       uses: actions/checkout@v6
 
     - name: Print summary outputs
-      if: always() # Always run this step to summarize the build
+      if: always()
       shell: bash
       run: |
         echo "---- Build Summary ----"
-        echo "digest: ${{ steps.build_and_push.outputs.digest }}"
-        echo "triggered: ${{ steps.diff.outputs.triggered }}"
-        echo "final_tags: ${{ steps.tags.outputs.final_tags }}"
-        echo "metadata_enabled: ${{ inputs.metadata_tags }}"
-        if [ "${{ inputs.metadata_tags }}" == "true" ]; then
-          echo "metadata_labels: ${{ steps.tags.outputs.labels }}"
-          echo "metadata_annotations: ${{ steps.tags.outputs.annotations }}"
+        if [ "${{ steps.vars.outputs.skip }}" == "true" ]; then
+          if [ "${{ steps.vars.outputs.skip_reason }}" == "fork_pr_pull_request" ]; then
+            echo "status: SKIPPED: Fork PR under pull_request (pull_request_target will handle this)"
+          elif [ "${{ steps.vars.outputs.skip_reason }}" == "same_repo_pull_request_target" ]; then
+            echo "status: SKIPPED: Same-repo PR under pull_request_target (pull_request handles this)"
+          else
+            echo "status: SKIPPED: Unknown reason"
+          fi
+          echo "triggered: false"
+        elif [ "${{ steps.build.outputs.triggered }}" == "true" ]; then
+          echo "triggered: true"
+          echo "digest: ${{ steps.build_and_push.outputs.digest }}"
+          echo "tags: ${{ steps.tags.outputs.final_tags }}"
+          if [ "${{ steps.attest.outcome }}" == "failure" ]; then
+            echo "::warning::Attestation failed. Add permissions: id-token: write, attestations: write"
+          fi
+        else
+          echo "triggered: false"
+          echo "retagged: ${{ inputs.tag_fallback }} -> ${{ inputs.tags }}"
         fi
         echo "-----------------------"

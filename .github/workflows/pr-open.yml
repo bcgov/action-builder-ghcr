@@ -2,9 +2,10 @@ name: PR
 
 on:
   pull_request:
+  pull_request_target:
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 permissions:
@@ -25,12 +26,12 @@ jobs:
           package: backend
           repository: bcgov/quickstart-openshift
 
-      - if: steps.build.outputs.triggered != 'false'
+      - if: steps.build.outputs.skip != 'true' && steps.build.outputs.triggered != 'false'
         run: |
           # Verify outputs
           echo "Outputs: ${{ toJSON(steps.build.outputs) }}"
-          if [ -z "${{ steps.build.outputs.digest }}" ] || [ "${{ steps.build.outputs.triggered }}" != "true" ]; then
-            echo "Error!  Verify outputs."
+          if [ -z "${{ steps.build.outputs.digest }}" ]; then
+            echo "Error! Verify outputs."
             exit 1
           fi
 
@@ -54,12 +55,12 @@ jobs:
           tag_fallback: test
           triggers: ('frontend/')
 
-      - if: steps.no-attestation.outputs.triggered != 'false'
+      - if: steps.no-attestation.outputs.skip != 'true' && steps.no-attestation.outputs.triggered != 'false'
         run: |
           # Verify outputs
           echo "Outputs: ${{ toJSON(steps.no-attestation.outputs) }}"
-          if [ -z "${{ steps.no-attestation.outputs.digest }}" ] || [ "${{ steps.no-attestation.outputs.triggered }}" != "true" ]; then
-            echo "Error!  Verify outputs."
+          if [ -z "${{ steps.no-attestation.outputs.digest }}" ]; then
+            echo "Error! Verify outputs."
             exit 1
           fi
 
@@ -92,18 +93,18 @@ jobs:
         with:
           package: action-builder-ghcr
           build_context: .
-          build_file: ./Dockerfile  # Results in org/repo format since Dockerfile is in root
+          build_file: ./Dockerfile # Results in org/repo format since Dockerfile is in root
           repository: bcgov/nr-peach
           tags: |
             ${{ github.event.number }}
             single-package-test
 
-      - if: steps.single-package.outputs.triggered != 'false'
+      - if: steps.single-package.outputs.skip != 'true' && steps.single-package.outputs.triggered != 'false'
         run: |
           # Verify outputs
           echo "Outputs: ${{ toJSON(steps.single-package.outputs) }}"
-          if [ -z "${{ steps.single-package.outputs.digest }}" ] || [ "${{ steps.single-package.outputs.triggered }}" != "true" ]; then
-            echo "Error!  Verify outputs."
+          if [ -z "${{ steps.single-package.outputs.digest }}" ]; then
+            echo "Error! Verify outputs."
             exit 1
           fi
 
@@ -125,7 +126,7 @@ jobs:
           tag_fallback: test
           triggers: ('frontend/')
           # Enable metadata tags
-          metadata_tags: 'true'
+          metadata_tags: "true"
           metadata_flavor: |
             latest=true
           metadata_tag_rules: |
@@ -133,12 +134,12 @@ jobs:
             type=ref,event=pr
             type=sha
 
-      - if: steps.metadata-tags.outputs.triggered != 'false'
+      - if: steps.metadata-tags.outputs.skip != 'true' && steps.metadata-tags.outputs.triggered != 'false'
         run: |
           # Verify outputs including labels
           echo "Outputs: ${{ toJSON(steps.metadata-tags.outputs) }}"
-          if [ -z "${{ steps.metadata-tags.outputs.digest }}" ] || [ "${{ steps.metadata-tags.outputs.triggered }}" != "true" ]; then
-            echo "Error!  Verify outputs."
+          if [ -z "${{ steps.metadata-tags.outputs.digest }}" ]; then
+            echo "Error! Verify outputs."
             exit 1
           fi
           # Verify labels output exists when metadata_tags is enabled
@@ -148,12 +149,44 @@ jobs:
           fi
           echo "Metadata tags test passed!"
 
-  results:
-    name: PR Results
-    needs: [advanced, build, no-attestation, single-package, metadata-tags]
-    if: always()
+  # Test fork detection: same-repo PR under pull_request_target should skip
+  # This verifies the skip logic for redundant pull_request_target events with same-repo PRs.
+  # Note: Full fork PR testing (actual fork repositories) requires external fork PRs,
+  # which cannot be tested in this same-repo workflow.
+  fork-detection-skip:
+    name: Fork Detection - Skip Same-Repo PR
+    if: github.event_name == 'pull_request_target'
     runs-on: ubuntu-24.04
     steps:
-      - if: contains(needs.*.result, 'failure')||contains(needs.*.result, 'canceled')
-        run: echo "At least one job has failed." && exit 1
+      - uses: actions/checkout@v6
+      - id: fork-skip
+        uses: ./
+        with:
+          package: frontend
+          build_context: frontend
+          repository: bcgov/quickstart-openshift
+          tags: ${{ github.event.number }}-fork-skip
+          tag_fallback: test
+          triggers: ('frontend/')
+
+      - name: Verify skip behavior
+        run: |
+          if [ "${{ steps.fork-skip.outputs.triggered }}" != "false" ]; then
+            echo "Error! Expected triggered=false for same-repo PR under pull_request_target"
+            echo "Outputs: ${{ toJSON(steps.fork-skip.outputs) }}"
+            exit 1
+          fi
+          echo "✓ Correctly skipped same-repo PR under pull_request_target"
+
+  results:
+    name: PR Results
+    needs: [advanced, build, no-attestation, single-package, metadata-tags, fork-detection-skip]
+    if: always() && needs.fork-detection-skip.result != 'failure'
+    runs-on: ubuntu-24.04
+    steps:
+      - if: contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled')
+        run: echo "At least one job has failed or was cancelled." && exit 1
+      - if: needs.fork-detection-skip.result == 'skipped' && github.event_name == 'pull_request'
+        run: |
+          echo "Note: fork-detection-skip job was skipped (only runs on pull_request_target events)"
       - run: echo "Success!"
