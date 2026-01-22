@@ -243,6 +243,18 @@ GitHub requires manual approval for `pull_request_target` workflows triggered by
 - A maintainer with write access must review the PR and click **"Approve workflows to run"** in the PR interface
 - Workflow runs awaiting approval are automatically deleted after 30 days
 
+**Workflow Configuration:**
+
+When using both `pull_request` and `pull_request_target` triggers for fork PR support, configure your workflow's concurrency group to prevent the two event types from canceling each other:
+
+```yaml
+concurrency:
+  group: ${{ github.event_name }}-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+```
+
+This ensures `pull_request` and `pull_request_target` runs can execute simultaneously for the same PR, while still canceling duplicate runs of the same event type.
+
 **Tag Protection:**
 
 This action automatically prevents fork PRs from using protected tags (`latest`, `test`, `prod`, `production`, `stable`) to prevent overwriting production images. Fork PRs should use PR-specific tags (e.g., `pr-123`).
