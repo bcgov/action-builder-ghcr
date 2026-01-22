@@ -133,6 +133,7 @@ runs:
             exit 0
           elif [[ "$EVENT_NAME" == "pull_request" && "$IS_FORK" == "true" ]]; then
             echo "Skipping: pull_request for fork PR (pull_request_target handles this - fork PRs need pull_request_target for GHCR write permissions)"
+            echo "::notice::Fork PR detected. Ensure your workflow has 'pull_request_target:' trigger configured for fork PR support."
             echo "skip=true" >> $GITHUB_OUTPUT
             echo "skip_reason=fork_pr_pull_request" >> $GITHUB_OUTPUT
             echo "triggered=false" >> $GITHUB_OUTPUT
@@ -166,7 +167,8 @@ runs:
     #   - The `vars` step above detects fork PRs and skips if they run under `pull_request`
     #     (allowing `pull_request_target` to handle them when both triggers are present).
     #   - When the caller configures `pull_request_target` for fork PRs, bcgov/action-diff-triggers@v1.0.0+
-    #     can automatically handle diff computation for those fork PRs.
+    #     automatically detects fork PR context from github.event.pull_request and handles diff computation
+    #     correctly by comparing the fork's head branch against the base repository's target branch.
     # External repos:
     #   - Skip for external repo builds (`inputs.repository != github.repository`) because diffing the
     #     current branch against another repository's branch is not meaningful in this context.
