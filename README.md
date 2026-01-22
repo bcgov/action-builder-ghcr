@@ -221,6 +221,37 @@ This will generate tags like:
 
 This action provides two key security features: Container Attestations and Software Bill of Materials (SBOM) generation. Additionally, it leverages the `docker/metadata-action` for best-practice container image tagging and labeling.
 
+## Fork PR Security
+
+This action supports pull requests from forks using the `pull_request_target` event. To ensure security, the following GitHub settings are required:
+
+### Required GitHub Settings
+
+**Workflow Approval for Fork Pull Requests:**
+
+GitHub requires manual approval for `pull_request_target` workflows triggered by fork pull requests. This is a security feature that prevents untrusted code from executing with write permissions.
+
+**To configure workflow approval:**
+
+1. Navigate to your repository settings: **Settings** → **Actions** → **General**
+2. Under **Workflow permissions**, ensure workflows are enabled
+3. Under **Fork pull request workflows**, ensure **Require approval for all outside collaborators** is enabled (or configure at organization/enterprise level)
+
+**How approval works:**
+
+- When a fork PR triggers a `pull_request_target` workflow, the run will show "Waiting for approval"
+- A maintainer with write access must review the PR and click **"Approve workflows to run"** in the PR interface
+- Workflow runs awaiting approval are automatically deleted after 30 days
+
+**Tag Protection:**
+
+This action automatically prevents fork PRs from using protected tags (`latest`, `test`, `prod`, `production`, `stable`) to prevent overwriting production images. Fork PRs should use PR-specific tags (e.g., `pr-123`).
+
+**References:**
+
+- [Approving workflow runs from forks](https://docs.github.com/en/actions/how-tos/manage-workflow-runs/approve-runs-from-forks)
+- [Managing GitHub Actions settings](https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/enabling-features-for-your-repository/managing-github-actions-settings-for-a-repository)
+
 ## Container Metadata and Labeling
 
 This action uses the [`docker/metadata-action`](https://github.com/docker/metadata-action) to automatically generate OCI-compliant labels and annotations for container images. This ensures that images are tagged and labeled following [Open Container Initiative (OCI) specifications](https://specs.opencontainers.org/image-spec/annotations/) and Docker best practices.
