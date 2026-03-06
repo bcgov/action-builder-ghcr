@@ -414,7 +414,7 @@ runs:
         fi
 
     - name: Upload SBOMs
-      uses: actions/upload-artifact@v6
+      uses: actions/upload-artifact@v7
       if: steps.build.outputs.triggered == 'true' && inputs.sbom == 'true' && steps.sbom.outputs.sbom_files_exist == 'true'
       continue-on-error: true
       with:
@@ -426,7 +426,7 @@ runs:
       continue-on-error: true
       id: attest
       if: steps.build.outputs.triggered == 'true'
-      uses: actions/attest-build-provenance@v3.2.0
+      uses: actions/attest-build-provenance@v4.1.0
       with:
         subject-name: ghcr.io/${{ steps.vars.outputs.image_path }}
         subject-digest: ${{ steps.build_and_push.outputs.digest }}
