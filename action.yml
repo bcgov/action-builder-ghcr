@@ -176,7 +176,7 @@ runs:
     # for bcgov/action-diff-triggers (v1.0.0+ uses `ref` instead of `diff_branch`).
     - id: diff
       if: inputs.repository == github.repository && steps.vars.outputs.skip != 'true'
-      uses: bcgov/action-diff-triggers@04bb0c4087cc06a8c060d23c3e660b7b15a323ac # v1.1.0
+      uses: bcgov/action-diff-triggers@4abfcb211f5816d654d1c5a417e5431a2c4a5379 # v1.1.1
       with:
         triggers: ${{ inputs.triggers }}
         ref: ${{ inputs.diff_branch }}
