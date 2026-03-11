@@ -216,7 +216,7 @@ runs:
     # Log in to GHCR (for both retag and build operations)
     - name: Log in to the Container registry
       if: steps.vars.outputs.skip != 'true'
-      uses: docker/login-action@v3
+      uses: docker/login-action@v4
       with:
         registry: ghcr.io
         username: ${{ github.actor }}
