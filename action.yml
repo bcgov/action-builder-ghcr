@@ -422,10 +422,21 @@ runs:
         path: sboms/
         if-no-files-found: warn
 
-    - name: Attest
-      continue-on-error: true
-      id: attest
+    - name: Check attestation permissions
+      id: attest_check
       if: steps.build.outputs.triggered == 'true'
+      shell: bash
+      run: |
+        if [ -z "${ACTIONS_ID_TOKEN_REQUEST_URL:-}" ]; then
+          echo "can_attest=false" >> "$GITHUB_OUTPUT"
+          echo "::warning::Attestation skipped. Add permissions: id-token: write, attestations: write"
+        else
+          echo "can_attest=true" >> "$GITHUB_OUTPUT"
+        fi
+
+    - name: Attest
+      id: attest
+      if: steps.build.outputs.triggered == 'true' && steps.attest_check.outputs.can_attest == 'true'
       uses: actions/attest-build-provenance@v4.1.0
       with:
         subject-name: ghcr.io/${{ steps.vars.outputs.image_path }}
@@ -456,7 +467,7 @@ runs:
           echo "digest: ${{ steps.build_and_push.outputs.digest }}"
           echo "tags: ${{ steps.tags.outputs.final_tags }}"
           if [ "${{ steps.attest.outcome }}" == "failure" ]; then
-            echo "::warning::Attestation failed. Add permissions: id-token: write, attestations: write"
+            echo "::warning::Attestation failed unexpectedly"
           fi
         else
           echo "triggered: false"
