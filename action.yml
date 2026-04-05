@@ -224,7 +224,7 @@ runs:
 
     # If a build is not required, reuse a previous image
     - name: Recycle/retag Previous Images
-      uses: shrink/actions-docker-registry-tag@f04afd0559f66b288586792eb150f45136a927fa # v4
+      uses: shrink/actions-docker-registry-tag@e6aaef25c595b6e0edd18bf4c7dbfea3abd43299 # v5
       if: steps.vars.outputs.skip != 'true' && steps.build.outputs.triggered != 'true'
       with:
         registry: ghcr.io
