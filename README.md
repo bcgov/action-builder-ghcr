@@ -55,18 +55,6 @@ Only GitHub Container Registry (ghcr.io) is supported so far.
     # Optional, defaults to nothing, which forces a build
     triggers: ('frontend/' 'backend/' 'database/')
 
-    # Cache sources for Docker layer caching
-    # Optional, defaults to type=gha
-    # Use type=registry for branch-agnostic cache sharing across PRs
-    # Example for registry cache: type=registry,ref=ghcr.io/${{ github.repository }}/package:buildcache
-    cache_from: type=gha
-
-    # Cache export destinations for Docker layer caching
-    # Optional, defaults to type=gha,mode=max
-    # Use with cache_from for registry caching
-    # Example for registry cache: type=registry,ref=ghcr.io/${{ github.repository }}/package:buildcache,mode=max
-    cache_to: type=gha,mode=max
-
 
     ### Usually a bad idea / not recommended
 
