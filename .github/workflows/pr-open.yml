@@ -16,6 +16,7 @@ permissions:
 jobs:
   # QuickStart apps build from the same dirs as their Dockerfiles
   build:
+    if: github.event_name == 'pull_request'
     name: Build
     runs-on: ubuntu-24.04
     steps:
@@ -37,6 +38,7 @@ jobs:
 
   # No attestation, no id-token, no build
   no-attestation:
+    if: github.event_name == 'pull_request'
     name: No Attestation
     permissions:
       attestations: none
@@ -66,6 +68,7 @@ jobs:
 
   # FOM apps build from repo root, above their Dockerfiles (extra params)
   advanced:
+    if: github.event_name == 'pull_request'
     name: Advanced
     runs-on: ubuntu-24.04
     steps:
@@ -84,6 +87,7 @@ jobs:
 
   # Test single-package repo format (no package in path)
   single-package:
+    if: github.event_name == 'pull_request'
     name: Single Package
     runs-on: ubuntu-24.04
     steps:
@@ -110,6 +114,7 @@ jobs:
 
   # Test metadata tags feature
   metadata-tags:
+    if: github.event_name == 'pull_request'
     name: Metadata Tags
     runs-on: ubuntu-24.04
     steps:
@@ -181,12 +186,11 @@ jobs:
   results:
     name: PR Results
     needs: [advanced, build, no-attestation, single-package, metadata-tags, fork-detection-skip]
-    if: always() && needs.fork-detection-skip.result != 'failure'
+    if: always() && (needs.fork-detection-skip.result != 'failure' && (github.event_name == 'pull_request' || needs.fork-detection-skip.result != 'skipped'))
     runs-on: ubuntu-24.04
     steps:
-      - if: contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled')
+      - if: github.event_name == 'pull_request' && (contains(needs.build.result, 'failure') || contains(needs.no-attestation.result, 'failure') || contains(needs.advanced.result, 'failure') || contains(needs.single-package.result, 'failure') || contains(needs.metadata-tags.result, 'failure') || contains(needs.build.result, 'cancelled') || contains(needs.no-attestation.result, 'cancelled') || contains(needs.advanced.result, 'cancelled') || contains(needs.single-package.result, 'cancelled') || contains(needs.metadata-tags.result, 'cancelled'))
         run: echo "At least one job has failed or was cancelled." && exit 1
-      - if: needs.fork-detection-skip.result == 'skipped' && github.event_name == 'pull_request'
-        run: |
-          echo "Note: fork-detection-skip job was skipped (only runs on pull_request_target events)"
+      - if: github.event_name == 'pull_request_target' && needs.fork-detection-skip.result != 'success'
+        run: echo "Fork detection job failed." && exit 1
       - run: echo "Success!"
