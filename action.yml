@@ -80,7 +80,7 @@ inputs:
         type=semver,pattern={{version}}
       See: https://github.com/docker/metadata-action#tags-input
 
-  outputs:
+outputs:
   digest:
     description: "Digest of the built image; e.g. sha256:1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef"
     value: ${{ steps.build_and_push.outputs.digest }}
@@ -312,8 +312,8 @@ runs:
         tags: ${{ steps.tags.outputs.final_tags }}
         labels: ${{ steps.tags.outputs.labels }}
         annotations: ${{ steps.tags.outputs.annotations }}
-        cache-from: type=registry,ref=ghcr.io/${{ steps.vars.outputs.image_path }}:buildcache
-        cache-to: type=registry,ref=ghcr.io/${{ steps.vars.outputs.image_path }}:buildcache,mode=max
+        cache-from: type=registry,ref=ghcr.io/${{ github.repository,, }}:buildcache
+        cache-to: type=registry,ref=ghcr.io/${{ github.repository,, }}:buildcache,mode=max
         build-args: ${{ inputs.build_args }}
         secrets: ${{ inputs.secrets }}
 
