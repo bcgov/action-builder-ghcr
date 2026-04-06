@@ -14,8 +14,8 @@ permissions:
   packages: write
 
 jobs:
-  # QuickStart apps build from the same dirs as their Dockerfiles
   build:
+    if: github.event_name == 'pull_request'
     name: Build
     runs-on: ubuntu-24.04
     steps:
@@ -35,8 +35,8 @@ jobs:
             exit 1
           fi
 
-  # No attestation, no id-token, no build
   no-attestation:
+    if: github.event_name == 'pull_request'
     name: No Attestation
     permissions:
       attestations: none
@@ -64,8 +64,8 @@ jobs:
             exit 1
           fi
 
-  # FOM apps build from repo root, above their Dockerfiles (extra params)
   advanced:
+    if: github.event_name == 'pull_request'
     name: Advanced
     runs-on: ubuntu-24.04
     steps:
@@ -82,8 +82,8 @@ jobs:
             ${{ github.event.number }}-multiline
             pr-latest
 
-  # Test single-package repo format (no package in path)
   single-package:
+    if: github.event_name == 'pull_request'
     name: Single Package
     runs-on: ubuntu-24.04
     steps:
@@ -108,8 +108,8 @@ jobs:
             exit 1
           fi
 
-  # Test metadata tags feature
   metadata-tags:
+    if: github.event_name == 'pull_request'
     name: Metadata Tags
     runs-on: ubuntu-24.04
     steps:
@@ -181,12 +181,25 @@ jobs:
   results:
     name: PR Results
     needs: [advanced, build, no-attestation, single-package, metadata-tags, fork-detection-skip]
-    if: always() && needs.fork-detection-skip.result != 'failure'
+    if: always()
     runs-on: ubuntu-24.04
     steps:
-      - if: contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled')
-        run: echo "At least one job has failed or was cancelled." && exit 1
-      - if: needs.fork-detection-skip.result == 'skipped' && github.event_name == 'pull_request'
-        run: |
-          echo "Note: fork-detection-skip job was skipped (only runs on pull_request_target events)"
+      - run: |
+          # Check for failures (excluding cancelled - that's normal when both events fire)
+          FAILED=0
+          for job in advanced build no-attestation single-package metadata-tags; do
+            if [ "${{ needs[$job].result }}" == "failure" ]; then
+              FAILED=1
+              break
+            fi
+          done
+          if [ "$FAILED" == "1" ]; then
+            echo "At least one job has failed."
+            exit 1
+          fi
+          if [ "${{ needs.fork-detection-skip.result }}" == "failure" ]; then
+            echo "Fork detection job failed."
+            exit 1
+          fi
+        shell: bash
       - run: echo "Success!"
