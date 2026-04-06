@@ -80,6 +80,20 @@ inputs:
         type=semver,pattern={{version}}
       See: https://github.com/docker/metadata-action#tags-input
 
+  ### Caching
+  cache_from:
+    default: "type=gha"
+    description: |
+      External cache sources for Docker layer caching.
+      See: https://github.com/docker/build-push-action/blob/master/docs/advanced.md#cache
+      Example: type=gha, type=registry,ref=ghcr.io/repo:buildcache
+  cache_to:
+    default: "type=gha,mode=max"
+    description: |
+      Cache export destinations for Docker layer caching.
+      See: https://github.com/docker/build-push-action/blob/master/docs/advanced.md#cache
+      Example: type=gha,mode=max, type=registry,ref=ghcr.io/repo:buildcache,mode=max
+
 outputs:
   digest:
     description: "Digest of the built image; e.g. sha256:1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef"
@@ -312,8 +326,8 @@ runs:
         tags: ${{ steps.tags.outputs.final_tags }}
         labels: ${{ steps.tags.outputs.labels }}
         annotations: ${{ steps.tags.outputs.annotations }}
-        cache-from: type=gha
-        cache-to: type=gha,mode=max
+        cache-from: ${{ inputs.cache_from }}
+        cache-to: ${{ inputs.cache_to }}
         build-args: ${{ inputs.build_args }}
         secrets: ${{ inputs.secrets }}
 
