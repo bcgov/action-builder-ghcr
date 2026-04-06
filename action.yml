@@ -53,17 +53,24 @@ inputs:
         MY_SECRET=secret_value
         ANOTHER_SECRET=another_value
   metadata_tags:
-    default: "false"
+    default: "true"
     description: |
       Enable automatic tag and label generation using docker/metadata-action based on user-provided tag rules.
       When enabled, generates tags and labels according to the rules specified in 'metadata_tag_rules'.
-      String value, not boolean. Set to 'true' to enable.
+      String value, not boolean. Set to 'true' to enable (default).
   metadata_flavor:
     description: |
       Flavor configuration for metadata-action (e.g., 'latest=true').
       Only used when metadata_tags is enabled.
       See: https://github.com/docker/metadata-action#flavor-input
   metadata_tag_rules:
+    default: |
+      type=sha,format=short
+      type=ref,event=branch
+      type=ref,event=pr
+      type=raw,value=latest,enable={{is_default_branch}}
+      type=semver,pattern={{major}}.{{minor}}
+      type=semver,pattern={{major}}
     description: |
       Custom tag rules for metadata-action.
       Only used when metadata_tags is enabled.

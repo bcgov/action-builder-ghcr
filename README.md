@@ -86,9 +86,9 @@ Only GitHub Container Registry (ghcr.io) is supported so far.
         ANOTHER_SECRET=${{ secrets.ANOTHER_SECRET }}
 
     # Enable automatic tag and label generation using docker/metadata-action
-    # String value, not boolean. Defaults to 'false'
+    # String value, not boolean. Defaults to 'true' (enabled by default)
     # When enabled, generates tags according to the rules specified in metadata_tag_rules (e.g., branch names, semver tags, SHAs, PR numbers, if configured)
-    metadata_tags: 'true'
+    # metadata_tags: 'true'  # Default is now enabled
 
     # Flavor configuration for metadata-action (optional)
     # Only used when metadata_tags is enabled
@@ -196,19 +196,17 @@ builds:
         package: frontend
         tag_fallback: test
         triggers: ('frontend/')
-        # Enable metadata-action integration
-        metadata_tags: 'true'
+        # Enable metadata-action integration (enabled by default)
+        # metadata_tags: 'true'  # Default - can be omitted
         # Configure automatic 'latest' tag
         metadata_flavor: |
           latest=true
-        # Define tagging rules
-        metadata_tag_rules: |
-          type=ref,event=branch
-          type=ref,event=pr
-          type=semver,pattern={{version}}
-          type=semver,pattern={{major}}.{{minor}}
-          type=semver,pattern={{major}}
-          type=sha
+        # Define tagging rules (uses sensible defaults if omitted)
+        # metadata_tag_rules: |
+        #   type=sha,format=short
+        #   type=ref,event=branch
+        #   type=ref,event=pr
+        #   type=raw,value=latest,enable={{is_default_branch}}
 ```
 
 This will generate tags like:
