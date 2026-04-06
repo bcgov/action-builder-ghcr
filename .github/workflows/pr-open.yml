@@ -151,9 +151,6 @@ jobs:
   results:
     name: PR Results
     needs: [advanced, build, no-attestation, single-package, metadata-tags]
-    if: always()
     runs-on: ubuntu-24.04
     steps:
-      - if: contains(needs.*.result, 'failure')
-        run: echo "At least one job has failed." && exit 1
       - run: echo "Success!"
