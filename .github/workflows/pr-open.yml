@@ -15,7 +15,6 @@ permissions:
 jobs:
   # QuickStart apps build from the same dirs as their Dockerfiles
   build:
-    if: github.event_name == 'pull_request'
     name: Build
     runs-on: ubuntu-24.04
     steps:
@@ -37,7 +36,6 @@ jobs:
 
   # No attestation, no id-token, no build
   no-attestation:
-    if: github.event_name == 'pull_request'
     name: No Attestation
     permissions:
       attestations: none
@@ -67,7 +65,6 @@ jobs:
 
   # FOM apps build from repo root, above their Dockerfiles (extra params)
   advanced:
-    if: github.event_name == 'pull_request'
     name: Advanced
     runs-on: ubuntu-24.04
     steps:
@@ -86,7 +83,6 @@ jobs:
 
   # Test single-package repo format (no package in path)
   single-package:
-    if: github.event_name == 'pull_request'
     name: Single Package
     runs-on: ubuntu-24.04
     steps:
@@ -113,7 +109,6 @@ jobs:
 
   # Test metadata tags feature
   metadata-tags:
-    if: github.event_name == 'pull_request'
     name: Metadata Tags
     runs-on: ubuntu-24.04
     steps:
@@ -159,6 +154,6 @@ jobs:
     if: always()
     runs-on: ubuntu-24.04
     steps:
-      - if: github.event_name == 'pull_request' && (contains(needs.build.result, 'failure') || contains(needs.no-attestation.result, 'failure') || contains(needs.advanced.result, 'failure') || contains(needs.single-package.result, 'failure') || contains(needs.metadata-tags.result, 'failure') || contains(needs.build.result, 'cancelled') || contains(needs.no-attestation.result, 'cancelled') || contains(needs.advanced.result, 'cancelled') || contains(needs.single-package.result, 'cancelled') || contains(needs.metadata-tags.result, 'cancelled'))
+      - if: contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled')
         run: echo "At least one job has failed or was cancelled." && exit 1
       - run: echo "Success!"
