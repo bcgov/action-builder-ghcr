@@ -312,8 +312,8 @@ runs:
         tags: ${{ steps.tags.outputs.final_tags }}
         labels: ${{ steps.tags.outputs.labels }}
         annotations: ${{ steps.tags.outputs.annotations }}
-        cache-from: type=registry,ref=ghcr.io/${{ github.repository,, }}:buildcache
-        cache-to: type=registry,ref=ghcr.io/${{ github.repository,, }}:buildcache,mode=max
+        cache-from: type=registry,ref=ghcr.io/${{ steps.vars.outputs.image_path }}:buildcache
+        cache-to: type=registry,ref=ghcr.io/${{ steps.vars.outputs.image_path }}:buildcache,mode=max
         build-args: ${{ inputs.build_args }}
         secrets: ${{ inputs.secrets }}
 
