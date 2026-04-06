@@ -55,8 +55,8 @@ inputs:
   metadata_tags:
     default: "true"
     description: |
-      Enable automatic tag and label generation using docker/metadata-action based on user-provided tag rules.
-      When enabled, generates tags and labels according to the rules specified in 'metadata_tag_rules'.
+      Enable automatic tag and label generation using docker/metadata-action.
+      When enabled, generates tags and labels using the default rules in 'metadata_tag_rules', which you can override.
       String value, not boolean. Set to 'true' to enable (default).
   metadata_flavor:
     description: |
@@ -69,6 +69,7 @@ inputs:
       type=ref,event=branch
       type=ref,event=pr
       type=raw,value=latest,enable={{is_default_branch}}
+      type=semver,pattern={{version}}
       type=semver,pattern={{major}}.{{minor}}
       type=semver,pattern={{major}}
     description: |
