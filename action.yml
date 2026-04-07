@@ -180,14 +180,42 @@ runs:
 
     # If a build is not required, reuse a previous image
     - name: Recycle/retag Previous Images
-      uses: shrink/actions-docker-registry-tag@e6aaef25c595b6e0edd18bf4c7dbfea3abd43299 # v5
       if: steps.build.outputs.triggered != 'true'
-      with:
-        registry: ghcr.io
-        repository: ${{ steps.vars.outputs.image_path }}
-        target: ${{ inputs.tag_fallback }}
-        tags: |
-          ${{ inputs.tags }}
+      shell: bash
+      env:
+        FALLBACK_IMAGE: ghcr.io/${{ steps.vars.outputs.image_path }}:${{ inputs.tag_fallback }}
+        INPUT_TAGS: ${{ inputs.tags }}
+      run: |
+        set -euo pipefail
+        
+        fallback_image="${FALLBACK_IMAGE}"
+        
+        if [ -z "${fallback_image}" ]; then
+          echo "::error::No fallback image specified for retag"
+          exit 1
+        fi
+        
+        retag_tags=""
+        if [ -n "${INPUT_TAGS}" ]; then
+          filtered_tags=$(printf '%s\n' "${INPUT_TAGS}" | grep -v '^$' || true)
+          if [ -n "${filtered_tags}" ]; then
+            retag_tags=$(printf '%s\n' "${filtered_tags}" | sed "s|^|ghcr.io/${{ steps.vars.outputs.image_path }}:|" | tr '[:upper:]' '[:lower:]' | paste -sd,)
+          fi
+        fi
+        
+        if [ -z "${retag_tags}" ]; then
+          echo "::error::No tags specified for retag"
+          exit 1
+        fi
+        
+        echo "::debug::Retagging ${fallback_image} to: ${retag_tags}"
+        
+        for tag in $(printf '%s\n' "${retag_tags}" | tr ',' '\n'); do
+          docker pull "${fallback_image}"
+          docker tag "${fallback_image}" "${tag}"
+          docker push "${tag}"
+        done
+        echo "Retag completed successfully"
 
     # Checkout code for building - external repo (use default branch)
     - name: Checkout external repository
@@ -235,38 +263,31 @@ runs:
 
     - name: Merge tags
       id: tags
-      if: steps.build.outputs.triggered == 'true'
       shell: bash
       env:
         INPUT_TAGS: ${{ inputs.tags }}
         META_TAGS: ${{ steps.meta.outputs.tags || '' }}
         META_LABELS: ${{ steps.meta.outputs.labels || '' }}
         META_ANNOTATIONS: ${{ steps.meta.outputs.annotations || '' }}
+        IS_RETAG: ${{ steps.build.outputs.triggered != 'true' }}
+        FALLBACK_IMAGE: ghcr.io/${{ steps.vars.outputs.image_path }}:${{ inputs.tag_fallback }}
       run: |
-        # Merge metadata tags with custom tags
         set -euo pipefail
 
-        # Start with custom tags (convert from multiline to comma-separated)
-        # Handle empty inputs gracefully
         custom_tags=""
         if [ -n "${INPUT_TAGS}" ]; then
-          # Filter out empty lines and process tags; use printf to safely handle multiline input
           filtered_tags=$(printf '%s\n' "${INPUT_TAGS}" | grep -v '^$' || true)
           if [ -n "${filtered_tags}" ]; then
             custom_tags=$(printf '%s\n' "${filtered_tags}" | sed "s|^|ghcr.io/${{ steps.vars.outputs.image_path }}:|" | tr '[:upper:]' '[:lower:]' | paste -sd,)
           fi
         fi
 
-        # If metadata tags are enabled, merge them
         if [ "${{ inputs.metadata_tags }}" == "true" ]; then
-          # Convert metadata tags from newline-separated to comma-separated (if any)
-          # Use printf to safely handle multiline output from metadata-action
           meta_tags=""
           if [ -n "${META_TAGS}" ]; then
             meta_tags=$(printf '%s\n' "${META_TAGS}" | tr '\n' ',' | sed 's/,$//')
           fi
           
-          # Combine tags (prefer custom tags first, then metadata tags)
           if [ -n "${custom_tags}" ] && [ -n "${meta_tags}" ]; then
             final_tags="${custom_tags},${meta_tags}"
           elif [ -n "${meta_tags}" ]; then
@@ -275,24 +296,42 @@ runs:
             final_tags="${custom_tags}"
           fi
           
-          # Pass through labels and annotations from metadata-action (even if no tags were generated)
-          # Use heredoc to safely handle multiline/special characters
-          echo "labels<<EOF" >> $GITHUB_OUTPUT
-          echo "${META_LABELS}" >> $GITHUB_OUTPUT
-          echo "EOF" >> $GITHUB_OUTPUT
-          echo "annotations<<EOF" >> $GITHUB_OUTPUT
-          echo "${META_ANNOTATIONS}" >> $GITHUB_OUTPUT
-          echo "EOF" >> $GITHUB_OUTPUT
+          if [ -n "${META_LABELS}" ]; then
+            echo "labels<<EOF" >> $GITHUB_OUTPUT
+            echo "${META_LABELS}" >> $GITHUB_OUTPUT
+            echo "EOF" >> $GITHUB_OUTPUT
+          elif [ "${IS_RETAG}" == "true" ] && [ -n "${FALLBACK_IMAGE}" ]; then
+            echo "::debug::Fetching labels from fallback image: ${FALLBACK_IMAGE}"
+            labels_json=$(docker manifest inspect "${FALLBACK_IMAGE}" 2>/dev/null | jq -r '.[0].config.Labels // {}')
+            if [ -n "${labels_json}" ] && [ "${labels_json}" != "{}" ]; then
+              echo "labels<<EOF" >> $GITHUB_OUTPUT
+              while IFS='=' read -r key value; do
+                if [ -n "${key}" ]; then
+                  echo "${key}=${value}"
+                fi
+              done < <(echo "${labels_json}" | jq -r 'to_entries | .[] | "\(.key)=\(.value)"')
+              echo "EOF" >> $GITHUB_OUTPUT
+            else
+              echo "labels=" >> $GITHUB_OUTPUT
+            fi
+          else
+            echo "labels=" >> $GITHUB_OUTPUT
+          fi
+          
+          if [ -n "${META_ANNOTATIONS}" ]; then
+            echo "annotations<<EOF" >> $GITHUB_OUTPUT
+            echo "${META_ANNOTATIONS}" >> $GITHUB_OUTPUT
+            echo "EOF" >> $GITHUB_OUTPUT
+          else
+            echo "annotations=" >> $GITHUB_OUTPUT
+          fi
         else
           final_tags="${custom_tags}"
-          # Empty labels and annotations when metadata_tags is disabled
           echo "labels=" >> $GITHUB_OUTPUT
           echo "annotations=" >> $GITHUB_OUTPUT
         fi
 
-        # Ensure at least one tag is present; fallback to :latest if empty
         if [ -z "${final_tags}" ]; then
-          # Warn if metadata_tags is enabled but no tags were generated (likely configuration error)
           if [ "${{ inputs.metadata_tags }}" == "true" ]; then
             echo "::warning::metadata_tags is enabled but no tags were generated. This may indicate missing or invalid metadata_tag_rules. Falling back to :latest tag."
           fi
