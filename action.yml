@@ -195,10 +195,30 @@ runs:
           ${{ inputs.tags }}
         token: ${{ inputs.token }}
 
+    # Debug checkout information for fork PRs
+    - name: Debug checkout info
+      shell: bash
+      if: steps.build.outputs.triggered == 'true'
+      run: |
+        echo "::debug::Checkout repository used: ${{ github.event.pull_request.head.repo.full_name || github.repository }}"
+        echo "::debug::Checkout ref used: ${{ github.event.pull_request.head.sha || github.ref }}"
+        echo "::debug::Head repo full_name: ${{ github.event.pull_request.head.repo.full_name }}"
+        echo "::debug::Head SHA: ${{ github.event.pull_request.head.sha }}"
+        echo "::debug::Base repository: ${{ github.repository }}"
+        echo "::debug::Base ref: ${{ github.ref }}"
+        echo "::debug::Current working directory: $(pwd)"
+        if [ -z "${{ inputs.token }}" ]; then
+          echo "::debug::Token is empty"
+        else
+          echo "::debug::Token is present (masked)"
+        fi
+        echo "::debug::Git remote -v:"
+        git remote -v || echo "::debug::Git not available or not a git repo"
+
     # Checkout code for building - external repo (use default branch)
     - name: Checkout external repository
       if: steps.build.outputs.triggered == 'true' && inputs.repository != github.repository
-      uses: actions/checkout@v6
+      uses: actions/checkout@v4
       with:
         repository: ${{ inputs.repository }}
         token: ${{ inputs.token }}
@@ -208,27 +228,12 @@ runs:
     # Checkout code for building - same repo PR (use PR head for fork support)
     - name: Checkout PR head
       if: steps.build.outputs.triggered == 'true' && inputs.repository == github.repository
-      uses: actions/checkout@v6
+      uses: actions/checkout@v4
       with:
         repository: ${{ github.event.pull_request.head.repo.full_name || github.repository }}
         ref: ${{ github.event.pull_request.head.sha || github.ref }}
         token: ${{ inputs.token }}
         persist-credentials: false
-
-    # Debug checkout information for fork PRs
-    - name: Debug checkout info
-      shell: bash
-      if: steps.build.outputs.triggered == 'true' && inputs.repository == github.repository
-      run: |
-        echo "::debug::Checkout repository used: ${{ github.event.pull_request.head.repo.full_name || github.repository }}"
-        echo "::debug::Checkout ref used: ${{ github.event.pull_request.head.sha || github.ref }}"
-        echo "::debug::Head repo full_name: ${{ github.event.pull_request.head.repo.full_name }}"
-        echo "::debug::Head SHA: ${{ github.event.pull_request.head.sha }}"
-        echo "::debug::Base repository: ${{ github.repository }}"
-        echo "::debug::Base ref: ${{ github.ref }}"
-        echo "::debug::Current working directory: $(pwd)"
-        echo "::debug::Git remote -v:"
-        git remote -v || echo "::debug::Git not available or not a git repo"
 
     - name: Set up Docker Buildx
       if: steps.build.outputs.triggered == 'true'
@@ -415,7 +420,7 @@ runs:
     # Only needed when testing action with `uses: ./` and building external repos
     - name: Checkout local repo
       if: steps.build.outputs.triggered == 'true' && inputs.repository != github.repository
-      uses: actions/checkout@v6
+      uses: actions/checkout@v4
       with:
         token: ${{ inputs.token }}
         persist-credentials: false
