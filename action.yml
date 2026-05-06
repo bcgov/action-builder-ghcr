@@ -44,7 +44,7 @@ inputs:
     default: ${{ github.repository }}
   token:
     description: Specify token (GH or PAT), instead of inheriting one from the calling workflow
-    default: ${{ github.token }}
+    default: ""
   secrets:
     description: |
       Multiline input for secrets to mount.
@@ -107,6 +107,9 @@ runs:
         INPUT_PACKAGE: ${{ inputs.package }}
         CONTEXT_REPO: ${{ github.event.repository.name }}
         INPUT_TAGS: ${{ inputs.tags }}
+        INPUT_TOKEN: ${{ inputs.token }}
+        GH_TOKEN: ${{ env.GH_TOKEN }}
+        GITHUB_TOKEN: ${{ env.GITHUB_TOKEN }}
       run: |
         # Set variables.
         set -euo pipefail
@@ -119,6 +122,14 @@ runs:
         fi
         echo "image_path=${image_path,,}" >> $GITHUB_OUTPUT
         echo "image_name=ghcr.io/${image_path,,}" >> $GITHUB_OUTPUT
+
+        # Resolve token: input > GH_TOKEN > GITHUB_TOKEN > github.token
+        resolved_token="${INPUT_TOKEN}"
+        if [ -z "$resolved_token" ]; then
+          resolved_token="${GH_TOKEN:-${GITHUB_TOKEN:-${{ github.token }}}}"
+        fi
+        echo "::add-mask::$resolved_token"
+        echo "token=$resolved_token" >> $GITHUB_OUTPUT
 
         # Extract first tag for artifact naming (sanitized for artifact name compatibility).
         # Fallback to 'artifact' if sanitized tag is empty.
@@ -138,6 +149,15 @@ runs:
       with:
         triggers: ${{ inputs.triggers }}
         ref: ${{ inputs.diff_branch }}
+
+    # Log in to GHCR (for both retag and build operations)
+    # This must happen before manifest inspection in 'Check for builds' to support private images
+    - name: Log in to the Container registry
+      uses: docker/login-action@v4
+      with:
+        registry: ghcr.io
+        username: ${{ github.actor }}
+        password: ${{ steps.vars.outputs.token }}
 
     # Check if a build is required (steps.build.outputs.triggered=true|false)
     - name: Check for builds
@@ -170,14 +190,6 @@ runs:
         echo "::debug::Final build decision: triggered=${triggered}"
         echo "triggered=${triggered}" >> $GITHUB_OUTPUT
 
-    # Log in to GHCR (for both retag and build operations)
-    - name: Log in to the Container registry
-      uses: docker/login-action@v4
-      with:
-        registry: ghcr.io
-        username: ${{ github.actor }}
-        password: ${{ inputs.token }}
-
     # If a build is not required, reuse a previous image
     - name: Recycle/retag Previous Images
       uses: shrink/actions-docker-registry-tag@e6aaef25c595b6e0edd18bf4c7dbfea3abd43299 # v5
@@ -188,6 +200,7 @@ runs:
         target: ${{ inputs.tag_fallback }}
         tags: |
           ${{ inputs.tags }}
+        token: ${{ steps.vars.outputs.token }}
 
     # Checkout code for building - external repo (use default branch)
     - name: Checkout external repository
@@ -195,6 +208,7 @@ runs:
       uses: actions/checkout@v6
       with:
         repository: ${{ inputs.repository }}
+        token: ${{ steps.vars.outputs.token }}
         # No ref specified = default branch of that repo
 
     # Checkout code for building - same repo PR (use PR head for fork support)
@@ -204,6 +218,7 @@ runs:
       with:
         repository: ${{ github.event.pull_request.head.repo.full_name || github.repository }}
         ref: ${{ github.event.pull_request.head.sha || github.ref }}
+        token: ${{ steps.vars.outputs.token }}
 
     # Debug checkout information for fork PRs
     - name: Debug checkout info
@@ -315,7 +330,9 @@ runs:
         cache-from: type=registry,ref=ghcr.io/${{ steps.vars.outputs.image_path }}:buildcache
         cache-to: type=registry,ref=ghcr.io/${{ steps.vars.outputs.image_path }}:buildcache,mode=max
         build-args: ${{ inputs.build_args }}
-        secrets: ${{ inputs.secrets }}
+        secrets: |
+          ${{ inputs.secrets }}
+          GITHUB_TOKEN=${{ steps.vars.outputs.token }}
 
     - name: Generate SBOM
       id: sbom
@@ -404,6 +421,8 @@ runs:
     - name: Checkout local repo
       if: steps.build.outputs.triggered == 'true' && inputs.repository != github.repository
       uses: actions/checkout@v6
+      with:
+        token: ${{ steps.vars.outputs.token }}
 
     - name: Print summary outputs
       if: always()
