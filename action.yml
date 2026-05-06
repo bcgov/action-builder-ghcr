@@ -446,6 +446,16 @@ runs:
           echo "digest=${{ steps.build.outputs.fallback_digest }}" >> $GITHUB_OUTPUT
         fi
 
+    - name: Finalize Outputs
+      id: final_outputs
+      shell: bash
+      run: |
+        if [ "${{ steps.build.outputs.triggered }}" == "true" ]; then
+          echo "digest=${{ steps.build_and_push.outputs.digest }}" >> $GITHUB_OUTPUT
+        else
+          echo "digest=${{ steps.build.outputs.fallback_digest }}" >> $GITHUB_OUTPUT
+        fi
+
     - name: Print summary outputs
       if: always()
       shell: bash
