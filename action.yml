@@ -85,8 +85,8 @@ inputs:
 
 outputs:
   digest:
-    description: "Digest of the built image; e.g. sha256:1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef"
-    value: ${{ steps.build_and_push.outputs.digest }}
+    description: "Immutable digest of the image (resolved from fallback or built fresh)"
+    value: ${{ steps.final_outputs.outputs.digest }}
 
   triggered:
     description: Did a deployment trigger?  [true|false]
@@ -168,20 +168,35 @@ runs:
         echo "::debug::  Fallback URL: ${URL_FALLBACK}"
         
         triggered=true
+        fallback_digest=""
+        
         if [ "${{ inputs.repository }}" != "${{ github.repository }}" ]; then
           echo "Build triggered. External repository provided (diff skipped)."
         elif [ "${{ steps.diff.outputs.triggered }}" == "true" ]; then
           echo "Build triggered. Used bcgov/action-diff-triggers."
         elif [ -z "${{ inputs.tag_fallback }}" ]; then
           echo "Build triggered. No tag_fallback provided."
-        elif [[ ! $(docker manifest inspect "${URL_FALLBACK}" 2>/dev/null) ]]; then
-          echo "Build triggered. Fallback tag (tag_fallback) not usable."
         else
-          echo "Container build not required - will retag existing image"
-          triggered=false
+          # Inspect manifest to verify existence and capture digest
+          MANIFEST=$(docker manifest inspect "${URL_FALLBACK}" 2>/dev/null || true)
+          if [[ -z "$MANIFEST" ]]; then
+            echo "Build triggered. Fallback tag (tag_fallback) not usable or not found."
+          else
+            echo "Container build not required - will retag existing image"
+            triggered=false
+            # Resolve the digest (handle multi-arch or single manifests)
+            fallback_digest=$(echo "$MANIFEST" | jq -r '.config.digest // .manifests[0].digest // empty' 2>/dev/null || true)
+            if [[ -z "$fallback_digest" ]]; then
+               # Fallback for older docker versions or specific manifest types
+               fallback_digest=$(docker manifest inspect "${URL_FALLBACK}" -v | jq -r '.Descriptor.digest // .[0].Descriptor.digest // empty' 2>/dev/null || true)
+            fi
+            echo "Resolved fallback digest: ${fallback_digest}"
+          fi
         fi
+        
         echo "::debug::Final build decision: triggered=${triggered}"
         echo "triggered=${triggered}" >> $GITHUB_OUTPUT
+        echo "fallback_digest=${fallback_digest}" >> $GITHUB_OUTPUT
 
     # If a build is not required, reuse a previous image
     - name: Recycle/retag Previous Images
@@ -425,20 +440,29 @@ runs:
         token: ${{ inputs.token }}
         persist-credentials: false
 
+    - name: Finalize Outputs
+      id: final_outputs
+      shell: bash
+      run: |
+        if [ "${{ steps.build.outputs.triggered }}" == "true" ]; then
+          echo "digest=${{ steps.build_and_push.outputs.digest }}" >> $GITHUB_OUTPUT
+        else
+          echo "digest=${{ steps.build.outputs.fallback_digest }}" >> $GITHUB_OUTPUT
+        fi
+
     - name: Print summary outputs
       if: always()
       shell: bash
       run: |
         echo "---- Build Summary ----"
+        echo "triggered: ${{ steps.build.outputs.triggered }}"
+        echo "digest: ${{ steps.final_outputs.outputs.digest }}"
         if [ "${{ steps.build.outputs.triggered }}" == "true" ]; then
-          echo "triggered: true"
-          echo "digest: ${{ steps.build_and_push.outputs.digest }}"
           echo "tags: ${{ steps.tags.outputs.final_tags }}"
           if [ "${{ steps.attest.outcome }}" == "failure" ]; then
             echo "::warning::Attestation failed. Check the 'Attest' step logs for details, and ensure this job has permissions: id-token: write, attestations: write in your workflow 'permissions' block."
           fi
         else
-          echo "triggered: false"
           echo "retagged: ${{ inputs.tag_fallback }} -> ${{ inputs.tags }}"
         fi
         echo "-----------------------"
