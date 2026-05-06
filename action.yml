@@ -215,7 +215,6 @@ runs:
           ${{ inputs.tags }}
         token: ${{ inputs.token }}
 
-
     # Checkout code for building - external repo (use default branch)
     - name: Checkout external repository
       if: steps.build.outputs.triggered == 'true' && inputs.repository != github.repository
@@ -416,8 +415,6 @@ runs:
       with:
         subject-name: ghcr.io/${{ steps.vars.outputs.image_path }}
         subject-digest: ${{ steps.build_and_push.outputs.digest }}
-
-
 
     - name: Finalize Outputs
       id: final_outputs
