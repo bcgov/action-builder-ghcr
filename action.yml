@@ -238,7 +238,7 @@ runs:
     # Checkout code for building - external repo (use default branch)
     - name: Checkout external repository
       if: steps.build.outputs.triggered == 'true' && inputs.repository != github.repository
-      uses: actions/checkout@v4
+      uses: actions/checkout@v6
       with:
         repository: ${{ inputs.repository }}
         token: ${{ inputs.token }}
@@ -248,7 +248,7 @@ runs:
     # Checkout code for building - same repo PR (use PR head for fork support)
     - name: Checkout PR head
       if: steps.build.outputs.triggered == 'true' && inputs.repository == github.repository
-      uses: actions/checkout@v4
+      uses: actions/checkout@v6
       with:
         repository: ${{ github.event.pull_request.head.repo.full_name || github.repository }}
         ref: ${{ github.event.pull_request.head.sha || github.ref }}
