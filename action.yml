@@ -419,6 +419,15 @@ runs:
         subject-name: ghcr.io/${{ steps.vars.outputs.image_path }}
         subject-digest: ${{ steps.build_and_push.outputs.digest }}
 
+    # Re-checkout after building from external repo (workspace was overwritten)
+    # Only needed when testing action with `uses: ./` and building external repos
+    - name: Checkout local repo
+      if: steps.build.outputs.triggered == 'true' && inputs.repository != github.repository
+      uses: actions/checkout@v6
+      with:
+        token: ${{ inputs.token }}
+        persist-credentials: false
+
 
 
     - name: Finalize Outputs
