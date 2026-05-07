@@ -45,6 +45,9 @@ inputs:
   token:
     description: Specify token (GH or PAT), instead of inheriting one from the calling workflow
     default: ${{ github.token }}
+  username:
+    description: Username for registry login; defaults to github.actor
+    default: ${{ github.actor }}
   secrets:
     description: |
       Multiline input for secrets to mount.
@@ -82,7 +85,7 @@ inputs:
 
 outputs:
   digest:
-    description: "Digest of the built image; e.g. sha256:1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef"
+    description: "Immutable digest of the image (only available on fresh builds)"
     value: ${{ steps.build_and_push.outputs.digest }}
 
   triggered:
@@ -120,9 +123,10 @@ runs:
         echo "image_path=${image_path,,}" >> $GITHUB_OUTPUT
         echo "image_name=ghcr.io/${image_path,,}" >> $GITHUB_OUTPUT
 
+
         # Extract first tag for artifact naming (sanitized for artifact name compatibility).
         # Fallback to 'artifact' if sanitized tag is empty.
-        first_tag=$(printf '%s\n' "${INPUT_TAGS}" | grep -v '^$' | head -n 1 | tr '[:upper:]' '[:lower:]' | tr -cd '[:alnum:]._-')
+        first_tag=$(printf '%s\n' "${INPUT_TAGS}" | grep -v '^$' | head -n 1 | tr '[:upper:]' '[:lower:]' | tr -cd '[:alnum:]._-' || true)
         first_tag="${first_tag:-artifact}"
         echo "first_tag=${first_tag}" >> $GITHUB_OUTPUT
 
@@ -138,6 +142,15 @@ runs:
       with:
         triggers: ${{ inputs.triggers }}
         ref: ${{ inputs.diff_branch }}
+
+    # Log in to GHCR (for both retag and build operations)
+    # This must happen before manifest inspection in 'Check for builds' to support private images
+    - name: Log in to the Container registry
+      uses: docker/login-action@v4
+      with:
+        registry: ghcr.io
+        username: ${{ inputs.username }}
+        password: ${{ inputs.token }}
 
     # Check if a build is required (steps.build.outputs.triggered=true|false)
     - name: Check for builds
@@ -155,28 +168,27 @@ runs:
         echo "::debug::  Fallback URL: ${URL_FALLBACK}"
         
         triggered=true
+        fallback_digest=""
+        
         if [ "${{ inputs.repository }}" != "${{ github.repository }}" ]; then
           echo "Build triggered. External repository provided (diff skipped)."
         elif [ "${{ steps.diff.outputs.triggered }}" == "true" ]; then
           echo "Build triggered. Used bcgov/action-diff-triggers."
         elif [ -z "${{ inputs.tag_fallback }}" ]; then
           echo "Build triggered. No tag_fallback provided."
-        elif [[ ! $(docker manifest inspect "${URL_FALLBACK}" 2>/dev/null) ]]; then
-          echo "Build triggered. Fallback tag (tag_fallback) not usable."
         else
-          echo "Container build not required - will retag existing image"
-          triggered=false
+          # Inspect manifest to verify existence and capture digest
+          MANIFEST=$(docker manifest inspect "${URL_FALLBACK}" 2>/dev/null || true)
+          if [[ -z "$MANIFEST" ]]; then
+            echo "Build triggered. Fallback tag (tag_fallback) not usable or not found."
+          else
+            echo "Container build not required - will retag existing image"
+            triggered=false
+          fi
         fi
+        
         echo "::debug::Final build decision: triggered=${triggered}"
         echo "triggered=${triggered}" >> $GITHUB_OUTPUT
-
-    # Log in to GHCR (for both retag and build operations)
-    - name: Log in to the Container registry
-      uses: docker/login-action@v4
-      with:
-        registry: ghcr.io
-        username: ${{ github.actor }}
-        password: ${{ inputs.token }}
 
     # If a build is not required, reuse a previous image
     - name: Recycle/retag Previous Images
@@ -188,6 +200,8 @@ runs:
         target: ${{ inputs.tag_fallback }}
         tags: |
           ${{ inputs.tags }}
+        token: ${{ inputs.token }}
+
 
     # Checkout code for building - external repo (use default branch)
     - name: Checkout external repository
@@ -195,6 +209,8 @@ runs:
       uses: actions/checkout@v6
       with:
         repository: ${{ inputs.repository }}
+        token: ${{ inputs.token }}
+        persist-credentials: false
         # No ref specified = default branch of that repo
 
     # Checkout code for building - same repo PR (use PR head for fork support)
@@ -204,21 +220,8 @@ runs:
       with:
         repository: ${{ github.event.pull_request.head.repo.full_name || github.repository }}
         ref: ${{ github.event.pull_request.head.sha || github.ref }}
-
-    # Debug checkout information for fork PRs
-    - name: Debug checkout info
-      shell: bash
-      if: steps.build.outputs.triggered == 'true' && inputs.repository == github.repository
-      run: |
-        echo "::debug::Checkout repository used: ${{ github.event.pull_request.head.repo.full_name || github.repository }}"
-        echo "::debug::Checkout ref used: ${{ github.event.pull_request.head.sha || github.ref }}"
-        echo "::debug::Head repo full_name: ${{ github.event.pull_request.head.repo.full_name }}"
-        echo "::debug::Head SHA: ${{ github.event.pull_request.head.sha }}"
-        echo "::debug::Base repository: ${{ github.repository }}"
-        echo "::debug::Base ref: ${{ github.ref }}"
-        echo "::debug::Current working directory: $(pwd)"
-        echo "::debug::Git remote -v:"
-        git remote -v || echo "::debug::Git not available or not a git repo"
+        token: ${{ inputs.token }}
+        persist-credentials: false
 
     - name: Set up Docker Buildx
       if: steps.build.outputs.triggered == 'true'
@@ -315,7 +318,9 @@ runs:
         cache-from: type=registry,ref=ghcr.io/${{ steps.vars.outputs.image_path }}:buildcache
         cache-to: type=registry,ref=ghcr.io/${{ steps.vars.outputs.image_path }}:buildcache,mode=max
         build-args: ${{ inputs.build_args }}
-        secrets: ${{ inputs.secrets }}
+        secrets: |
+          ${{ inputs.secrets }}
+          GITHUB_TOKEN=${{ inputs.token }}
 
     - name: Generate SBOM
       id: sbom
@@ -399,26 +404,21 @@ runs:
         subject-name: ghcr.io/${{ steps.vars.outputs.image_path }}
         subject-digest: ${{ steps.build_and_push.outputs.digest }}
 
-    # Re-checkout after building from external repo (workspace was overwritten)
-    # Only needed when testing action with `uses: ./` and building external repos
-    - name: Checkout local repo
-      if: steps.build.outputs.triggered == 'true' && inputs.repository != github.repository
-      uses: actions/checkout@v6
+
 
     - name: Print summary outputs
       if: always()
       shell: bash
       run: |
         echo "---- Build Summary ----"
+        echo "triggered: ${{ steps.build.outputs.triggered }}"
+        echo "digest: ${{ steps.build_and_push.outputs.digest }}"
         if [ "${{ steps.build.outputs.triggered }}" == "true" ]; then
-          echo "triggered: true"
-          echo "digest: ${{ steps.build_and_push.outputs.digest }}"
           echo "tags: ${{ steps.tags.outputs.final_tags }}"
           if [ "${{ steps.attest.outcome }}" == "failure" ]; then
             echo "::warning::Attestation failed. Check the 'Attest' step logs for details, and ensure this job has permissions: id-token: write, attestations: write in your workflow 'permissions' block."
           fi
         else
-          echo "triggered: false"
           echo "retagged: ${{ inputs.tag_fallback }} -> ${{ inputs.tags }}"
         fi
         echo "-----------------------"
