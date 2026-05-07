@@ -84,8 +84,11 @@ Only GitHub Container Registry (ghcr.io) is supported so far.
     username: ${{ github.actor }}
 
     # Multiline input for secrets to mount.
+    # Note: GITHUB_TOKEN is no longer injected by default. If your build needs it
+    # (e.g. to pull private packages), you must explicitly pass it here.
     # https://docs.docker.com/build/ci/github-actions/secrets/#secret-mounts
     secrets: |
+        GITHUB_TOKEN=${{ secrets.GITHUB_TOKEN }}
         MY_SECRET=${{ secrets.MY_SECRET }}
         ANOTHER_SECRET=${{ secrets.ANOTHER_SECRET }}
 
@@ -137,6 +140,7 @@ This action supports building from and pushing to private repositories.
 To prevent credential leakage, this action:
 - Uses `persist-credentials: false` during all checkout steps.
 - Performs a clean registry login using the provided `username` and `token` before any manifest or build operations.
+- Follows the principle of least privilege by **not** automatically injecting `GITHUB_TOKEN` into the Docker build process. If your build needs a token (e.g., to pull private packages), you must explicitly provide it via the `secrets` input.
 
 
 # Example, Single Build
