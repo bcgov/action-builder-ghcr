@@ -17,11 +17,3 @@ jobs:
     permissions:
       pull-requests: write
     uses: bcgov/quickstart-openshift-helpers/.github/workflows/.pr-validate.yml@ca6579bdadf383a2513397081f963889b92823a4 # v1.1.0
-
-  results:
-    name: Validate Results
-    if: always()
-    needs: [validate]
-    runs-on: ubuntu-slim
-    steps:
-      - run: echo "Success!"
