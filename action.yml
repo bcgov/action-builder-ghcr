@@ -152,6 +152,9 @@ runs:
         username: ${{ inputs.username }}
         password: ${{ inputs.token }}
 
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v4
+
     # Check if a build is required (steps.build.outputs.triggered=true|false)
     - name: Check for builds
       env:
@@ -159,6 +162,14 @@ runs:
       id: build
       shell: bash
       run: |
+        # Pre-flight check for required tools
+        for tool in docker; do
+          if ! command -v "$tool" >/dev/null 2>&1; then
+            echo "::error::Required tool '$tool' is missing. Please ensure it is installed on the runner."
+            exit 1
+          fi
+        done
+
         # Check for builds
         echo "::debug::Build decision logic:"
         echo "::debug::  Input repository: ${{ inputs.repository }}"
@@ -177,22 +188,17 @@ runs:
         elif [ -z "${{ inputs.tag_fallback }}" ]; then
           echo "Build triggered. No tag_fallback provided."
         else
-          # Inspect manifest to verify existence and capture digest
-          MANIFEST=$(docker manifest inspect "${URL_FALLBACK}" 2>/dev/null || true)
-          if [[ -z "$MANIFEST" ]]; then
+          # Inspect manifest to verify existence
+          if ! docker manifest inspect "${URL_FALLBACK}" >/dev/null 2>&1; then
             echo "Build triggered. Fallback tag (tag_fallback) not usable or not found."
           else
             echo "Container build not required - will retag existing image"
             triggered=false
-            # Resolve the digest (handle multi-arch or single manifests)
-            fallback_digest=$(echo "$MANIFEST" | jq -r '.config.digest // .manifests[0].digest // empty' 2>/dev/null || true)
-            if [[ -z "$fallback_digest" ]]; then
-               # Fallback for older docker versions or specific manifest types
-               fallback_digest=$(docker manifest inspect "${URL_FALLBACK}" -v | jq -r '.Descriptor.digest // .[0].Descriptor.digest // empty' 2>/dev/null || true)
-            fi
+            # Resolve the immutable digest using buildx imagetools (robust for multi-arch or single manifests)
+            fallback_digest=$(docker buildx imagetools inspect "${URL_FALLBACK}" --format '{{.Digest}}' 2>/dev/null || true)
 
             if [[ -z "$fallback_digest" ]]; then
-              echo "::error::Failed to resolve immutable digest for fallback image ${URL_FALLBACK}. Recycled images MUST have a valid digest."
+              echo "::error::Failed to resolve immutable digest for fallback image ${URL_FALLBACK}. This image may be invalid or inaccessible."
               exit 1
             fi
             echo "::debug::Resolved fallback digest: ${fallback_digest}"
@@ -235,10 +241,6 @@ runs:
         ref: ${{ github.event.pull_request.head.sha || github.ref }}
         token: ${{ inputs.token }}
         persist-credentials: false
-
-    - name: Set up Docker Buildx
-      if: steps.build.outputs.triggered == 'true'
-      uses: docker/setup-buildx-action@v4
 
     - name: Prepare Container Metadata tags
       id: meta
