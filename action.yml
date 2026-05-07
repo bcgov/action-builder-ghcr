@@ -344,7 +344,6 @@ runs:
         build-args: ${{ inputs.build_args }}
         secrets: |
           ${{ inputs.secrets }}
-          GITHUB_TOKEN=${{ inputs.token }}
 
     - name: Generate SBOM
       id: sbom
