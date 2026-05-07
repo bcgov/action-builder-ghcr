@@ -230,6 +230,7 @@ runs:
         repository: ${{ inputs.repository }}
         token: ${{ inputs.token }}
         persist-credentials: false
+        path: __external_repo__
         # No ref specified = default branch of that repo
 
     # Checkout code for building - same repo PR (use PR head for fork support)
@@ -324,8 +325,18 @@ runs:
       if: steps.build.outputs.triggered == 'true'
       uses: docker/build-push-action@v7
       with:
-        context: ${{ inputs.build_context || inputs.package }}
-        file: ${{ inputs.build_file || format('{0}/Dockerfile', inputs.package) }}
+        context: |-
+          ${{ 
+            inputs.repository != github.repository 
+            ? format('__external_repo__/{0}', inputs.build_context || inputs.package) 
+            : (inputs.build_context || inputs.package) 
+          }}
+        file: |-
+          ${{ 
+            inputs.repository != github.repository 
+            ? format('__external_repo__/{0}', inputs.build_file || format('{1}/Dockerfile', inputs.repository, inputs.package)) 
+            : (inputs.build_file || format('{0}/Dockerfile', inputs.package)) 
+          }}
         push: true
         tags: ${{ steps.tags.outputs.final_tags }}
         labels: ${{ steps.tags.outputs.labels }}
@@ -333,7 +344,7 @@ runs:
         cache-from: type=registry,ref=ghcr.io/${{ steps.vars.outputs.image_path }}:buildcache
         cache-to: type=registry,ref=ghcr.io/${{ steps.vars.outputs.image_path }}:buildcache,mode=max
         build-args: ${{ inputs.build_args }}
-        secrets: |
+        secrets: |-
           ${{ inputs.secrets }}
           GITHUB_TOKEN=${{ inputs.token }}
 
@@ -419,15 +430,6 @@ runs:
         subject-name: ghcr.io/${{ steps.vars.outputs.image_path }}
         subject-digest: ${{ steps.build_and_push.outputs.digest }}
 
-    # Re-checkout after building from external repo (workspace was overwritten)
-    # Only needed when testing action with `uses: ./` and building external repos
-    - name: Checkout local repo
-      if: inputs.repository != github.repository
-      uses: actions/checkout@v6
-      with:
-        repository: ${{ github.repository }}
-        token: ${{ inputs.token }}
-        persist-credentials: false
 
     - name: Finalize Outputs
       id: final_outputs
