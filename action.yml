@@ -152,9 +152,6 @@ runs:
         username: ${{ inputs.username }}
         password: ${{ inputs.token }}
 
-    - name: Set up Docker Buildx
-      uses: docker/setup-buildx-action@v4
-
     # Check if a build is required (steps.build.outputs.triggered=true|false)
     - name: Check for builds
       env:
@@ -179,19 +176,27 @@ runs:
           echo "Build triggered. Used bcgov/action-diff-triggers."
         elif [ -z "${{ inputs.tag_fallback }}" ]; then
           echo "Build triggered. No tag_fallback provided."
-        elif [[ ! $(docker manifest inspect "${URL_FALLBACK}" 2>/dev/null) ]]; then
-          echo "Build triggered. Fallback tag (tag_fallback) not usable."
         else
-          echo "Container build not required - will retag existing image"
-          triggered=false
-          # Resolve the immutable digest using buildx imagetools (robust for multi-arch or single manifests)
-          fallback_digest=$(docker buildx imagetools inspect "${URL_FALLBACK}" --format '{{.Digest}}' 2>/dev/null || true)
+          # Inspect manifest to verify existence and capture digest
+          MANIFEST=$(docker manifest inspect "${URL_FALLBACK}" 2>/dev/null || true)
+          if [[ -z "$MANIFEST" ]]; then
+            echo "Build triggered. Fallback tag (tag_fallback) not usable or not found."
+          else
+            echo "Container build not required - will retag existing image"
+            triggered=false
+            # Resolve the digest (handle multi-arch or single manifests)
+            fallback_digest=$(echo "$MANIFEST" | jq -r '.config.digest // .manifests[0].digest // empty' 2>/dev/null || true)
+            if [[ -z "$fallback_digest" ]]; then
+               # Fallback for older docker versions or specific manifest types
+               fallback_digest=$(docker manifest inspect "${URL_FALLBACK}" -v | jq -r '.Descriptor.digest // .[0].Descriptor.digest // empty' 2>/dev/null || true)
+            fi
 
-          if [[ -z "$fallback_digest" ]]; then
-            echo "::error::Failed to resolve immutable digest for fallback image ${URL_FALLBACK}. This image may be invalid or inaccessible."
-            exit 1
+            if [[ -z "$fallback_digest" ]]; then
+              echo "::error::Failed to resolve immutable digest for fallback image ${URL_FALLBACK}. Recycled images MUST have a valid digest."
+              exit 1
+            fi
+            echo "::debug::Resolved fallback digest: ${fallback_digest}"
           fi
-          echo "::debug::Resolved fallback digest: ${fallback_digest}"
         fi
         
         echo "::debug::Final build decision: triggered=${triggered}"
@@ -210,11 +215,30 @@ runs:
           ${{ inputs.tags }}
         token: ${{ inputs.token }}
 
+    # Debug checkout information for fork PRs
+    - name: Debug checkout info
+      shell: bash
+      if: steps.build.outputs.triggered == 'true'
+      run: |
+        echo "::debug::Checkout repository used: ${{ github.event.pull_request.head.repo.full_name || github.repository }}"
+        echo "::debug::Checkout ref used: ${{ github.event.pull_request.head.sha || github.ref }}"
+        echo "::debug::Head repo full_name: ${{ github.event.pull_request.head.repo.full_name }}"
+        echo "::debug::Head SHA: ${{ github.event.pull_request.head.sha }}"
+        echo "::debug::Base repository: ${{ github.repository }}"
+        echo "::debug::Base ref: ${{ github.ref }}"
+        echo "::debug::Current working directory: $(pwd)"
+        if [ -z "${{ inputs.token }}" ]; then
+          echo "::debug::Token is empty"
+        else
+          echo "::debug::Token is present (masked)"
+        fi
+        echo "::debug::Git remote -v:"
+        git remote -v || echo "::debug::Git not available or not a git repo"
 
     # Checkout code for building - external repo (use default branch)
     - name: Checkout external repository
       if: steps.build.outputs.triggered == 'true' && inputs.repository != github.repository
-      uses: actions/checkout@v6
+      uses: actions/checkout@v4
       with:
         repository: ${{ inputs.repository }}
         token: ${{ inputs.token }}
@@ -224,12 +248,16 @@ runs:
     # Checkout code for building - same repo PR (use PR head for fork support)
     - name: Checkout PR head
       if: steps.build.outputs.triggered == 'true' && inputs.repository == github.repository
-      uses: actions/checkout@v6
+      uses: actions/checkout@v4
       with:
         repository: ${{ github.event.pull_request.head.repo.full_name || github.repository }}
         ref: ${{ github.event.pull_request.head.sha || github.ref }}
         token: ${{ inputs.token }}
         persist-credentials: false
+
+    - name: Set up Docker Buildx
+      if: steps.build.outputs.triggered == 'true'
+      uses: docker/setup-buildx-action@v4
 
     - name: Prepare Container Metadata tags
       id: meta
@@ -411,10 +439,14 @@ runs:
     # Re-checkout after building from external repo (workspace was overwritten)
     # Only needed when testing action with `uses: ./` and building external repos
     - name: Checkout local repo
+<<<<<<< HEAD
       if: inputs.repository != github.repository
       uses: actions/checkout@v6
+=======
+      if: steps.build.outputs.triggered == 'true' && inputs.repository != github.repository
+      uses: actions/checkout@v4
+>>>>>>> bc896b4 (debug: move checkout debug info earlier and revert to checkout v4)
       with:
-        repository: ${{ github.repository }}
         token: ${{ inputs.token }}
         persist-credentials: false
 
