@@ -44,7 +44,7 @@ inputs:
     default: ${{ github.repository }}
   token:
     description: Specify token (GH or PAT), instead of inheriting one from the calling workflow
-    default: ""
+    default: ${{ github.token }}
   username:
     description: Username for registry login; defaults to github.actor
     default: ${{ github.actor }}
@@ -110,9 +110,6 @@ runs:
         INPUT_PACKAGE: ${{ inputs.package }}
         CONTEXT_REPO: ${{ github.event.repository.name }}
         INPUT_TAGS: ${{ inputs.tags }}
-        INPUT_TOKEN: ${{ inputs.token }}
-        GH_TOKEN: ${{ env.GH_TOKEN }}
-        GITHUB_TOKEN: ${{ env.GITHUB_TOKEN }}
       run: |
         # Set variables.
         set -euo pipefail
@@ -126,13 +123,6 @@ runs:
         echo "image_path=${image_path,,}" >> $GITHUB_OUTPUT
         echo "image_name=ghcr.io/${image_path,,}" >> $GITHUB_OUTPUT
 
-        # Resolve token: input > GH_TOKEN > GITHUB_TOKEN > github.token
-        resolved_token="${INPUT_TOKEN}"
-        if [ -z "$resolved_token" ]; then
-          resolved_token="${GH_TOKEN:-${GITHUB_TOKEN:-${{ github.token }}}}"
-        fi
-        echo "::add-mask::$resolved_token"
-        echo "token=$resolved_token" >> $GITHUB_OUTPUT
 
         # Extract first tag for artifact naming (sanitized for artifact name compatibility).
         # Fallback to 'artifact' if sanitized tag is empty.
@@ -160,7 +150,7 @@ runs:
       with:
         registry: ghcr.io
         username: ${{ inputs.username }}
-        password: ${{ steps.vars.outputs.token }}
+        password: ${{ inputs.token }}
 
     - name: Set up Docker Buildx
       uses: docker/setup-buildx-action@v4
@@ -229,7 +219,7 @@ runs:
         target: ${{ inputs.tag_fallback }}
         tags: |
           ${{ inputs.tags }}
-        token: ${{ steps.vars.outputs.token }}
+        token: ${{ inputs.token }}
 
 
     # Checkout code for building - external repo (use default branch)
@@ -238,7 +228,7 @@ runs:
       uses: actions/checkout@v6
       with:
         repository: ${{ inputs.repository }}
-        token: ${{ steps.vars.outputs.token }}
+        token: ${{ inputs.token }}
         persist-credentials: false
         # No ref specified = default branch of that repo
 
@@ -249,7 +239,7 @@ runs:
       with:
         repository: ${{ github.event.pull_request.head.repo.full_name || github.repository }}
         ref: ${{ github.event.pull_request.head.sha || github.ref }}
-        token: ${{ steps.vars.outputs.token }}
+        token: ${{ inputs.token }}
         persist-credentials: false
 
     - name: Prepare Container Metadata tags
@@ -345,7 +335,7 @@ runs:
         build-args: ${{ inputs.build_args }}
         secrets: |
           ${{ inputs.secrets }}
-          GITHUB_TOKEN=${{ steps.vars.outputs.token }}
+          GITHUB_TOKEN=${{ inputs.token }}
 
     - name: Generate SBOM
       id: sbom
@@ -436,7 +426,7 @@ runs:
       uses: actions/checkout@v6
       with:
         repository: ${{ github.repository }}
-        token: ${{ steps.vars.outputs.token }}
+        token: ${{ inputs.token }}
         persist-credentials: false
 
     - name: Finalize Outputs
