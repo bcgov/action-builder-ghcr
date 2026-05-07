@@ -85,8 +85,8 @@ inputs:
 
 outputs:
   digest:
-    description: "Immutable digest of the image (only available on fresh builds)"
-    value: ${{ steps.build_and_push.outputs.digest }}
+    description: "Immutable digest of the image (resolved from fallback or built fresh)"
+    value: ${{ steps.final_outputs.outputs.digest }}
 
   triggered:
     description: Did a deployment trigger?  [true|false]
@@ -184,11 +184,21 @@ runs:
           else
             echo "Container build not required - will retag existing image"
             triggered=false
+            # Resolve the digest (handle multi-arch or single manifests)
+            # This returns the authoritative manifest/index digest directly from the registry
+            fallback_digest=$(docker buildx imagetools inspect "${URL_FALLBACK}" | grep "^Digest: " | awk "{print \$2}" || true)
+
+            if [[ -z "$fallback_digest" ]]; then
+              echo "::error::Failed to resolve immutable digest for fallback image ${URL_FALLBACK}. Recycled images MUST have a valid digest."
+              exit 1
+            fi
+            echo "::debug::Resolved fallback digest: ${fallback_digest}"
           fi
         fi
         
         echo "::debug::Final build decision: triggered=${triggered}"
         echo "triggered=${triggered}" >> $GITHUB_OUTPUT
+        echo "fallback_digest=${fallback_digest}" >> $GITHUB_OUTPUT
 
     # If a build is not required, reuse a previous image
     - name: Recycle/retag Previous Images
@@ -211,6 +221,8 @@ runs:
         repository: ${{ inputs.repository }}
         token: ${{ inputs.token }}
         persist-credentials: false
+        path: .builder-context
+        clean: false
         # No ref specified = default branch of that repo
 
     # Checkout code for building - same repo PR (use PR head for fork support)
@@ -222,6 +234,8 @@ runs:
         ref: ${{ github.event.pull_request.head.sha || github.ref }}
         token: ${{ inputs.token }}
         persist-credentials: false
+        path: .builder-context
+        clean: false
 
     - name: Set up Docker Buildx
       if: steps.build.outputs.triggered == 'true'
@@ -309,8 +323,8 @@ runs:
       if: steps.build.outputs.triggered == 'true'
       uses: docker/build-push-action@v7
       with:
-        context: ${{ inputs.build_context || inputs.package }}
-        file: ${{ inputs.build_file || format('{0}/Dockerfile', inputs.package) }}
+        context: .builder-context/${{ inputs.build_context || inputs.package }}
+        file: .builder-context/${{ inputs.build_file || format('{0}/Dockerfile', inputs.package) }}
         push: true
         tags: ${{ steps.tags.outputs.final_tags }}
         labels: ${{ steps.tags.outputs.labels }}
@@ -406,13 +420,23 @@ runs:
 
 
 
+    - name: Finalize Outputs
+      id: final_outputs
+      shell: bash
+      run: |
+        if [ "${{ steps.build.outputs.triggered }}" == "true" ]; then
+          echo "digest=${{ steps.build_and_push.outputs.digest }}" >> $GITHUB_OUTPUT
+        else
+          echo "digest=${{ steps.build.outputs.fallback_digest }}" >> $GITHUB_OUTPUT
+        fi
+
     - name: Print summary outputs
       if: always()
       shell: bash
       run: |
         echo "---- Build Summary ----"
         echo "triggered: ${{ steps.build.outputs.triggered }}"
-        echo "digest: ${{ steps.build_and_push.outputs.digest }}"
+        echo "digest: ${{ steps.final_outputs.outputs.digest }}"
         if [ "${{ steps.build.outputs.triggered }}" == "true" ]; then
           echo "tags: ${{ steps.tags.outputs.final_tags }}"
           if [ "${{ steps.attest.outcome }}" == "failure" ]; then
