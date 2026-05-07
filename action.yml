@@ -82,6 +82,9 @@ inputs:
         type=ref,event=branch
         type=semver,pattern={{version}}
       See: https://github.com/docker/metadata-action#tags-input
+  sbom:
+    default: "true"
+    description: Generate a Software Bill of Materials (SBOM) for the container image.
 
 outputs:
   digest:
@@ -418,14 +421,6 @@ runs:
         subject-digest: ${{ steps.build_and_push.outputs.digest }}
 
 
-    # Re-checkout after building from external repo (workspace was overwritten)
-    # Only needed when testing action with `uses: ./` and building external repos
-    - name: Checkout local repo
-      if: inputs.repository != github.repository
-      uses: actions/checkout@v6
-      with:
-        token: ${{ inputs.token }}
-        persist-credentials: false
 
     - name: Finalize Outputs
       id: final_outputs
