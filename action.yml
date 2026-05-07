@@ -224,6 +224,7 @@ runs:
         repository: ${{ inputs.repository }}
         token: ${{ inputs.token }}
         persist-credentials: false
+        path: .builder-context
         # No ref specified = default branch of that repo
 
     # Checkout code for building - same repo PR (use PR head for fork support)
@@ -235,6 +236,7 @@ runs:
         ref: ${{ github.event.pull_request.head.sha || github.ref }}
         token: ${{ inputs.token }}
         persist-credentials: false
+        path: .builder-context
 
     - name: Set up Docker Buildx
       if: steps.build.outputs.triggered == 'true'
@@ -322,8 +324,8 @@ runs:
       if: steps.build.outputs.triggered == 'true'
       uses: docker/build-push-action@v7
       with:
-        context: ${{ inputs.build_context || inputs.package }}
-        file: ${{ inputs.build_file || format('{0}/Dockerfile', inputs.package) }}
+        context: .builder-context/${{ inputs.build_context || inputs.package }}
+        file: .builder-context/${{ inputs.build_file || format('{0}/Dockerfile', inputs.package) }}
         push: true
         tags: ${{ steps.tags.outputs.final_tags }}
         labels: ${{ steps.tags.outputs.labels }}
@@ -443,8 +445,3 @@ runs:
           echo "retagged: ${{ inputs.tag_fallback }} -> ${{ inputs.tags }}"
         fi
         echo "-----------------------"
-
-    # Checkout to keep cleanup steps happy
-    - name: Checkout external repository
-      if: always()
-      uses: actions/checkout@v6
