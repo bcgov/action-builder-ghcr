@@ -225,6 +225,7 @@ runs:
         token: ${{ inputs.token }}
         persist-credentials: false
         path: .builder-context
+        clean: false
         # No ref specified = default branch of that repo
 
     # Checkout code for building - same repo PR (use PR head for fork support)
@@ -237,6 +238,7 @@ runs:
         token: ${{ inputs.token }}
         persist-credentials: false
         path: .builder-context
+        clean: false
 
     - name: Set up Docker Buildx
       if: steps.build.outputs.triggered == 'true'
