@@ -417,8 +417,6 @@ runs:
         subject-name: ghcr.io/${{ steps.vars.outputs.image_path }}
         subject-digest: ${{ steps.build_and_push.outputs.digest }}
 
-
-
     - name: Finalize Outputs
       id: final_outputs
       shell: bash
@@ -445,3 +443,8 @@ runs:
           echo "retagged: ${{ inputs.tag_fallback }} -> ${{ inputs.tags }}"
         fi
         echo "-----------------------"
+
+    # Checkout to keep cleanup steps happy
+    - name: Checkout external repository
+      if: always()
+      uses: actions/checkout@v6
