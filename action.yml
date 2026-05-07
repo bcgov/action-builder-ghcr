@@ -185,8 +185,8 @@ runs:
             echo "Container build not required - will retag existing image"
             triggered=false
             # Resolve the digest (handle multi-arch or single manifests)
-            # Use --verbose to get the top-level descriptor digest reliably
-            fallback_digest=$(docker manifest inspect "${URL_FALLBACK}" -v | jq -r 'if type=="array" then .[0].Descriptor.digest else .Descriptor.digest end' 2>/dev/null || true)
+            # This returns the authoritative manifest/index digest directly from the registry
+            fallback_digest=$(docker buildx imagetools inspect "${URL_FALLBACK}" | grep "^Digest: " | awk "{print \$2}" || true)
 
             if [[ -z "$fallback_digest" ]]; then
               echo "::error::Failed to resolve immutable digest for fallback image ${URL_FALLBACK}. Recycled images MUST have a valid digest."
