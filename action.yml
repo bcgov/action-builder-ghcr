@@ -422,9 +422,10 @@ runs:
     # Re-checkout after building from external repo (workspace was overwritten)
     # Only needed when testing action with `uses: ./` and building external repos
     - name: Checkout local repo
-      if: steps.build.outputs.triggered == 'true' && inputs.repository != github.repository
+      if: inputs.repository != github.repository
       uses: actions/checkout@v6
       with:
+        repository: ${{ github.repository }}
         token: ${{ inputs.token }}
         persist-credentials: false
 
