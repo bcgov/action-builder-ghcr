@@ -100,6 +100,14 @@ outputs:
     description: "Generated OCI annotations from metadata-action (only when metadata_tags is enabled)"
     value: ${{ steps.tags.outputs.annotations }}
 
+  registry_host:
+    description: "The registry host name, always `ghcr.io`"
+    value: ${{ steps.vars.outputs.registry_host }}
+
+  image_path:
+    description: "The full image path including the tag, always with a leading slash, in the format `/owner/repo/image:tag` (or `/owner/repo:tag` when the package matches the repository name)"
+    value: ${{ steps.final_outputs.outputs.image_path }}
+
 runs:
   using: composite
   steps:
@@ -122,11 +130,13 @@ runs:
         fi
         echo "image_path=${image_path,,}" >> $GITHUB_OUTPUT
         echo "image_name=ghcr.io/${image_path,,}" >> $GITHUB_OUTPUT
+        echo "registry_host=ghcr.io" >> $GITHUB_OUTPUT
 
 
         # Extract first tag for artifact naming (sanitized for artifact name compatibility).
         # Fallback to 'artifact' if sanitized tag is empty.
         first_tag=$(printf '%s\n' "${INPUT_TAGS}" | grep -v '^$' | head -n 1 | tr '[:upper:]' '[:lower:]' | tr -cd '[:alnum:]._-' || true)
+        
         first_tag="${first_tag:-artifact}"
         echo "first_tag=${first_tag}" >> $GITHUB_OUTPUT
 
@@ -426,9 +436,19 @@ runs:
       run: |
         if [ "${{ steps.build.outputs.triggered }}" == "true" ]; then
           echo "digest=${{ steps.build_and_push.outputs.digest }}" >> $GITHUB_OUTPUT
+          # Derive image_path from the actual tags generated/pushed
+          # steps.tags.outputs.final_tags is a comma-separated list of full URLs
+          full_primary_image=$(echo "${{ steps.tags.outputs.final_tags }}" | cut -d, -f1)
+          image_path=$(echo "${full_primary_image}" | sed 's|^ghcr.io||')
         else
           echo "digest=${{ steps.build.outputs.fallback_digest }}" >> $GITHUB_OUTPUT
+          # For retagged images, use the first tag from inputs.tags or fallback
+          tag=$(printf '%s\n' "${{ inputs.tags }}" | grep -v '^$' | head -n 1 | tr '[:upper:]' '[:lower:]' | tr -cd '[:alnum:]._-' || true)
+          tag="${tag:-${{ inputs.tag_fallback }}}"
+          tag="${tag:-latest}"
+          image_path="/${{ steps.vars.outputs.image_path }}:${tag}"
         fi
+        echo "image_path=${image_path}" >> $GITHUB_OUTPUT
 
     - name: Print summary outputs
       if: always()
@@ -437,12 +457,28 @@ runs:
         echo "---- Build Summary ----"
         echo "triggered: ${{ steps.build.outputs.triggered }}"
         echo "digest: ${{ steps.final_outputs.outputs.digest }}"
+        echo "registry_host: ${{ steps.vars.outputs.registry_host }}"
+        echo "image_path: ${{ steps.final_outputs.outputs.image_path }}"
+
+        # Add to GitHub Job Summary
+        echo "### Container Build Summary" >> $GITHUB_STEP_SUMMARY
+        echo "| Output | Value |" >> $GITHUB_STEP_SUMMARY
+        echo "| --- | --- |" >> $GITHUB_STEP_SUMMARY
+        echo "| **triggered** | \`${{ steps.build.outputs.triggered }}\` |" >> $GITHUB_STEP_SUMMARY
+        echo "| **digest** | \`${{ steps.final_outputs.outputs.digest }}\` |" >> $GITHUB_STEP_SUMMARY
+        echo "| **registry_host** | \`${{ steps.vars.outputs.registry_host }}\` |" >> $GITHUB_STEP_SUMMARY
+        echo "| **image_path** | \`${{ steps.final_outputs.outputs.image_path }}\` |" >> $GITHUB_STEP_SUMMARY
+
         if [ "${{ steps.build.outputs.triggered }}" == "true" ]; then
           echo "tags: ${{ steps.tags.outputs.final_tags }}"
+          echo "| **tags** | \`${{ steps.tags.outputs.final_tags }}\` |" >> $GITHUB_STEP_SUMMARY
           if [ "${{ steps.attest.outcome }}" == "failure" ]; then
             echo "::warning::Attestation failed. Check the 'Attest' step logs for details, and ensure this job has permissions: id-token: write, attestations: write in your workflow 'permissions' block."
+            echo "> [!WARNING]" >> $GITHUB_STEP_SUMMARY
+            echo "> Attestation failed. Check logs for details." >> $GITHUB_STEP_SUMMARY
           fi
         else
           echo "retagged: ${{ inputs.tag_fallback }} -> ${{ inputs.tags }}"
+          echo "| **retagged** | \`${{ inputs.tag_fallback }} -> ${{ inputs.tags }}\` |" >> $GITHUB_STEP_SUMMARY
         fi
         echo "-----------------------"
