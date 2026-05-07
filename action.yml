@@ -100,6 +100,14 @@ outputs:
     description: "Generated OCI annotations from metadata-action (only when metadata_tags is enabled)"
     value: ${{ steps.tags.outputs.annotations }}
 
+  registry_host:
+    description: "The registry host (always ghcr.io)"
+    value: ${{ steps.vars.outputs.registry_host }}
+
+  image_path:
+    description: "The full internal path including the tag (e.g. /owner/repo/image:tag)"
+    value: ${{ steps.vars.outputs.image_path_with_tag }}
+
 runs:
   using: composite
   steps:
@@ -122,11 +130,17 @@ runs:
         fi
         echo "image_path=${image_path,,}" >> $GITHUB_OUTPUT
         echo "image_name=ghcr.io/${image_path,,}" >> $GITHUB_OUTPUT
+        echo "registry_host=ghcr.io" >> $GITHUB_OUTPUT
 
 
         # Extract first tag for artifact naming (sanitized for artifact name compatibility).
         # Fallback to 'artifact' if sanitized tag is empty.
         first_tag=$(printf '%s\n' "${INPUT_TAGS}" | grep -v '^$' | head -n 1 | tr '[:upper:]' '[:lower:]' | tr -cd '[:alnum:]._-' || true)
+        
+        # For the image_path output, we use the first tag but with a more standard fallback.
+        tag_for_path="${first_tag:-latest}"
+        echo "image_path_with_tag=/${image_path,,}:${tag_for_path}" >> $GITHUB_OUTPUT
+
         first_tag="${first_tag:-artifact}"
         echo "first_tag=${first_tag}" >> $GITHUB_OUTPUT
 
@@ -437,6 +451,8 @@ runs:
         echo "---- Build Summary ----"
         echo "triggered: ${{ steps.build.outputs.triggered }}"
         echo "digest: ${{ steps.final_outputs.outputs.digest }}"
+        echo "registry_host: ${{ steps.vars.outputs.registry_host }}"
+        echo "image_path: ${{ steps.vars.outputs.image_path_with_tag }}"
         if [ "${{ steps.build.outputs.triggered }}" == "true" ]; then
           echo "tags: ${{ steps.tags.outputs.final_tags }}"
           if [ "${{ steps.attest.outcome }}" == "failure" ]; then

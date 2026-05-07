@@ -33,6 +33,15 @@ jobs:
             echo "Error! Verify outputs."
             exit 1
           fi
+          if [ "${{ steps.build.outputs.registry_host }}" != "ghcr.io" ]; then
+            echo "Error! registry_host mismatch: ${{ steps.build.outputs.registry_host }}"
+            exit 1
+          fi
+          if [ -z "${{ steps.build.outputs.image_path }}" ]; then
+            echo "Error! image_path is empty."
+            exit 1
+          fi
+          echo "Verified registry_host and image_path: ${{ steps.build.outputs.registry_host }} and ${{ steps.build.outputs.image_path }}"
 
   # No attestation, no id-token, no build
   no-attestation:
