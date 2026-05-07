@@ -71,6 +71,14 @@ jobs:
             echo "Error! Verify outputs."
             exit 1
           fi
+          if [ "${{ steps.no-attestation.outputs.registry_host }}" != "ghcr.io" ]; then
+            echo "Error! registry_host mismatch: ${{ steps.no-attestation.outputs.registry_host }}"
+            exit 1
+          fi
+          if [ -z "${{ steps.no-attestation.outputs.image_path }}" ]; then
+            echo "Error! image_path is empty."
+            exit 1
+          fi
 
   # FOM apps build from repo root, above their Dockerfiles (extra params)
   advanced:
@@ -89,6 +97,23 @@ jobs:
             ${{ github.event.number }}
             ${{ github.event.number }}-multiline
             pr-latest
+
+      - if: steps.advanced.outputs.triggered != 'false'
+        run: |
+          # Verify outputs
+          echo "Outputs: ${{ toJSON(steps.advanced.outputs) }}"
+          if [ -z "${{ steps.advanced.outputs.digest }}" ]; then
+            echo "Error! Verify outputs."
+            exit 1
+          fi
+          if [ "${{ steps.advanced.outputs.registry_host }}" != "ghcr.io" ]; then
+            echo "Error! registry_host mismatch: ${{ steps.advanced.outputs.registry_host }}"
+            exit 1
+          fi
+          if [ -z "${{ steps.advanced.outputs.image_path }}" ]; then
+            echo "Error! image_path is empty."
+            exit 1
+          fi
 
   # Test single-package repo format (no package in path)
   single-package:
@@ -113,6 +138,14 @@ jobs:
           echo "Outputs: ${{ toJSON(steps.single-package.outputs) }}"
           if [ -z "${{ steps.single-package.outputs.digest }}" ]; then
             echo "Error! Verify outputs."
+            exit 1
+          fi
+          if [ "${{ steps.single-package.outputs.registry_host }}" != "ghcr.io" ]; then
+            echo "Error! registry_host mismatch: ${{ steps.single-package.outputs.registry_host }}"
+            exit 1
+          fi
+          if [ -z "${{ steps.single-package.outputs.image_path }}" ]; then
+            echo "Error! image_path is empty."
             exit 1
           fi
 
@@ -148,6 +181,14 @@ jobs:
           echo "Outputs: ${{ toJSON(steps.metadata-tags.outputs) }}"
           if [ -z "${{ steps.metadata-tags.outputs.digest }}" ]; then
             echo "Error! Verify outputs."
+            exit 1
+          fi
+          if [ "${{ steps.metadata-tags.outputs.registry_host }}" != "ghcr.io" ]; then
+            echo "Error! registry_host mismatch: ${{ steps.metadata-tags.outputs.registry_host }}"
+            exit 1
+          fi
+          if [ -z "${{ steps.metadata-tags.outputs.image_path }}" ]; then
+            echo "Error! image_path is empty."
             exit 1
           fi
           # Verify labels output exists when metadata_tags is enabled

@@ -459,12 +459,26 @@ runs:
         echo "digest: ${{ steps.final_outputs.outputs.digest }}"
         echo "registry_host: ${{ steps.vars.outputs.registry_host }}"
         echo "image_path: ${{ steps.final_outputs.outputs.image_path }}"
+
+        # Add to GitHub Job Summary
+        echo "### Container Build Summary" >> $GITHUB_STEP_SUMMARY
+        echo "| Output | Value |" >> $GITHUB_STEP_SUMMARY
+        echo "| --- | --- |" >> $GITHUB_STEP_SUMMARY
+        echo "| **triggered** | \`${{ steps.build.outputs.triggered }}\` |" >> $GITHUB_STEP_SUMMARY
+        echo "| **digest** | \`${{ steps.final_outputs.outputs.digest }}\` |" >> $GITHUB_STEP_SUMMARY
+        echo "| **registry_host** | \`${{ steps.vars.outputs.registry_host }}\` |" >> $GITHUB_STEP_SUMMARY
+        echo "| **image_path** | \`${{ steps.final_outputs.outputs.image_path }}\` |" >> $GITHUB_STEP_SUMMARY
+
         if [ "${{ steps.build.outputs.triggered }}" == "true" ]; then
           echo "tags: ${{ steps.tags.outputs.final_tags }}"
+          echo "| **tags** | \`${{ steps.tags.outputs.final_tags }}\` |" >> $GITHUB_STEP_SUMMARY
           if [ "${{ steps.attest.outcome }}" == "failure" ]; then
             echo "::warning::Attestation failed. Check the 'Attest' step logs for details, and ensure this job has permissions: id-token: write, attestations: write in your workflow 'permissions' block."
+            echo "> [!WARNING]" >> $GITHUB_STEP_SUMMARY
+            echo "> Attestation failed. Check logs for details." >> $GITHUB_STEP_SUMMARY
           fi
         else
           echo "retagged: ${{ inputs.tag_fallback }} -> ${{ inputs.tags }}"
+          echo "| **retagged** | \`${{ inputs.tag_fallback }} -> ${{ inputs.tags }}\` |" >> $GITHUB_STEP_SUMMARY
         fi
         echo "-----------------------"
