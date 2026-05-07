@@ -82,6 +82,9 @@ inputs:
         type=ref,event=branch
         type=semver,pattern={{version}}
       See: https://github.com/docker/metadata-action#tags-input
+  sbom:
+    default: "true"
+    description: Generate a Software Bill of Materials (SBOM) for the container image.
 
 outputs:
   digest:
@@ -190,7 +193,12 @@ runs:
                # Fallback for older docker versions or specific manifest types
                fallback_digest=$(docker manifest inspect "${URL_FALLBACK}" -v | jq -r '.Descriptor.digest // .[0].Descriptor.digest // empty' 2>/dev/null || true)
             fi
-            echo "Resolved fallback digest: ${fallback_digest}"
+
+            if [[ -z "$fallback_digest" ]]; then
+              echo "::error::Failed to resolve immutable digest for fallback image ${URL_FALLBACK}. Recycled images MUST have a valid digest."
+              exit 1
+            fi
+            echo "::debug::Resolved fallback digest: ${fallback_digest}"
           fi
         fi
         
@@ -210,25 +218,6 @@ runs:
           ${{ inputs.tags }}
         token: ${{ inputs.token }}
 
-    # Debug checkout information for fork PRs
-    - name: Debug checkout info
-      shell: bash
-      if: steps.build.outputs.triggered == 'true'
-      run: |
-        echo "::debug::Checkout repository used: ${{ github.event.pull_request.head.repo.full_name || github.repository }}"
-        echo "::debug::Checkout ref used: ${{ github.event.pull_request.head.sha || github.ref }}"
-        echo "::debug::Head repo full_name: ${{ github.event.pull_request.head.repo.full_name }}"
-        echo "::debug::Head SHA: ${{ github.event.pull_request.head.sha }}"
-        echo "::debug::Base repository: ${{ github.repository }}"
-        echo "::debug::Base ref: ${{ github.ref }}"
-        echo "::debug::Current working directory: $(pwd)"
-        if [ -z "${{ inputs.token }}" ]; then
-          echo "::debug::Token is empty"
-        else
-          echo "::debug::Token is present (masked)"
-        fi
-        echo "::debug::Git remote -v:"
-        git remote -v || echo "::debug::Git not available or not a git repo"
 
     # Checkout code for building - external repo (use default branch)
     - name: Checkout external repository
@@ -431,14 +420,7 @@ runs:
         subject-name: ghcr.io/${{ steps.vars.outputs.image_path }}
         subject-digest: ${{ steps.build_and_push.outputs.digest }}
 
-    # Re-checkout after building from external repo (workspace was overwritten)
-    # Only needed when testing action with `uses: ./` and building external repos
-    - name: Checkout local repo
-      if: steps.build.outputs.triggered == 'true' && inputs.repository != github.repository
-      uses: actions/checkout@v6
-      with:
-        token: ${{ inputs.token }}
-        persist-credentials: false
+
 
     - name: Finalize Outputs
       id: final_outputs
