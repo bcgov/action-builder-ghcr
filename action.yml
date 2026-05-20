@@ -42,7 +42,7 @@ inputs:
   repository:
     description: Non-default repo to clone
     default: ${{ github.repository }}
-  token:
+  github_token:
     description: Specify token (GH or PAT), instead of inheriting one from the calling workflow
     default: ${{ github.token }}
   username:
@@ -160,7 +160,7 @@ runs:
       with:
         registry: ghcr.io
         username: ${{ inputs.username }}
-        password: ${{ inputs.token }}
+        password: ${{ inputs.github_token }}
 
     # Check if a build is required (steps.build.outputs.triggered=true|false)
     - name: Check for builds
@@ -220,7 +220,7 @@ runs:
         target: ${{ inputs.tag_fallback }}
         tags: |
           ${{ inputs.tags }}
-        token: ${{ inputs.token }}
+        token: ${{ inputs.github_token }}
 
 
     # Checkout code for building - external repo (use default branch)
@@ -229,7 +229,7 @@ runs:
       uses: actions/checkout@v6
       with:
         repository: ${{ inputs.repository }}
-        token: ${{ inputs.token }}
+        token: ${{ inputs.github_token }}
         persist-credentials: false
         path: .builder-context
         clean: false
@@ -242,7 +242,7 @@ runs:
       with:
         repository: ${{ github.event.pull_request.head.repo.full_name || github.repository }}
         ref: ${{ github.event.pull_request.head.sha || github.ref }}
-        token: ${{ inputs.token }}
+        token: ${{ inputs.github_token }}
         persist-credentials: false
         path: .builder-context
         clean: false
