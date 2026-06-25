@@ -18,7 +18,7 @@ jobs:
     name: Build
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - id: build
         uses: ./
         with:
@@ -52,7 +52,7 @@ jobs:
       packages: write
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - id: no-attestation
         uses: ./
         with:
@@ -85,7 +85,7 @@ jobs:
     name: Advanced
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - id: advanced
         uses: ./
         with:
@@ -120,7 +120,7 @@ jobs:
     name: Single Package
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - id: single-package
         uses: ./
         with:
@@ -154,7 +154,7 @@ jobs:
     name: Metadata Tags
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - id: metadata-tags
         uses: ./
         with:
