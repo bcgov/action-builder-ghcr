@@ -1,483 +1,85 @@
-name: Conditional Container Builder with Fallback
-description: Build if trigger conditions are met, else use fallback image
-branding:
-  icon: package
-  color: blue
-
+name: 'Build and Push to GHCR'
+description: 'This Action has moved to bcgov/actions/builder-ghcr'
+author: 'Om Mishra <om.mishra@gov.bc.ca>'
 inputs:
-  ### Required
   package:
-    description: Package name; e.g. backend, frontend
+    description: 'The directory containing the code/Dockerfile. Typically matches the image name.'
     required: true
-
-  ### Typical / recommended
   build_context:
-    description: Build context, not required for self-contained package/default directory
+    description: 'Optional path to the Docker build context. Defaults to the package directory.'
+    required: false
   build_file:
-    description: Dockerfile with path, not required for self-contained package/default directory
-  sbom:
-    default: "true"
-    description: Generate a Software Bill of Materials (SBOM) for the container image. Enabled by default for better security practices.
-  tag_fallback:
-    description: Where to pull default images from; e.g. prod, test
-  tags:
-    default: ${{ github.event.number }}
-    description: |
-      Default tag(s); e.g. pr#, test, prod.
-      Supports multiline input for multiple tags.
-      Example: |
-        pr123
-        demo
-        test
-  triggers:
-    description: Paths used to trigger a build; e.g. ('./backend/' './frontend/)
-
-  ### Usually a bad idea / not recommended
+    description: 'Optional path to the Dockerfile. Defaults to ${package}/Dockerfile.'
+    required: false
   build_args:
-    description: A list of build-time variables, generally not advisable
-    default: "BUILDKIT_INLINE_CACHE=1"
-  diff_branch:
-    description: Branch to diff against
-    default: ${{ github.event.repository.default_branch }}
-  repository:
-    description: Non-default repo to clone
-    default: ${{ github.repository }}
-  github_token:
-    description: Specify token (GH or PAT), instead of inheriting one from the calling workflow
-    default: ${{ github.token }}
-  username:
-    description: Username for registry login; defaults to github.actor
-    default: ${{ github.actor }}
+    description: 'List of build-time variables (multi-line or comma-separated).'
+    required: false
   secrets:
-    description: |
-      Multiline input for secrets to mount.
-      https://docs.docker.com/build/ci/github-actions/secrets/#secret-mounts
-      Example: |
-        MY_SECRET=secret_value
-        ANOTHER_SECRET=another_value
+    description: 'List of secrets to expose to the build (multi-line or comma-separated).'
+    required: false
+  target:
+    description: 'Sets the target stage to build.'
+    required: false
+  image:
+    description: 'The name of the image. Defaults to the package name.'
+    required: false
+  tag_fallback:
+    description: 'Fallback tag to use if the image exists. Used for fallback pull/retag.'
+    required: false
+    default: 'latest'
+  tags:
+    description: 'Multi-line list of tags to push.'
+    required: true
+  triggers:
+    description: 'Multi-line git diff paths to evaluate. If no changes match, build is skipped and fallback image is retagged.'
+    required: false
   metadata_tags:
-    default: "true"
-    description: |
-      Enable automatic tag and label generation using docker/metadata-action.
-      When enabled, generates tags and labels using the default rules in 'metadata_tag_rules', which you can override.
-      String value, not boolean. Set to 'true' to enable (default).
+    description: 'Automatically generate tags based on metadata.'
+    required: false
+    default: 'false'
   metadata_flavor:
-    description: |
-      Flavor configuration for metadata-action (e.g., 'latest=true').
-      Only used when metadata_tags is enabled.
-      See: https://github.com/docker/metadata-action#flavor-input
-  metadata_tag_rules:
-    default: |
-      type=sha,format=short
-      type=ref,event=branch
-      type=ref,event=pr
-      type=raw,value=latest,enable={{is_default_branch}}
-      type=semver,pattern={{version}}
-      type=semver,pattern={{major}}.{{minor}}
-      type=semver,pattern={{major}}
-    description: |
-      Custom tag rules for metadata-action.
-      Only used when metadata_tags is enabled.
-      Example: |
-        type=ref,event=branch
-        type=semver,pattern={{version}}
-      See: https://github.com/docker/metadata-action#tags-input
+    description: 'Behavior of tag replacement (e.g. prefix, suffix).'
+    required: false
+  github_token:
+    description: 'Token to authenticate with GHCR. Defaults to github.token.'
+    required: false
+    default: ${{ github.token }}
+  repository:
+    description: 'The repository to fetch if building code from outside the current repository.'
+    required: false
+    default: ${{ github.repository }}
 
 outputs:
   digest:
-    description: "Immutable digest of the image (resolved from fallback or built fresh)"
-    value: ${{ steps.final_outputs.outputs.digest }}
-
-  triggered:
-    description: Did a deployment trigger?  [true|false]
-    value: ${{ steps.build.outputs.triggered }}
-
-  labels:
-    description: "Generated OCI labels from metadata-action (only when metadata_tags is enabled)"
-    value: ${{ steps.tags.outputs.labels }}
-
-  annotations:
-    description: "Generated OCI annotations from metadata-action (only when metadata_tags is enabled)"
-    value: ${{ steps.tags.outputs.annotations }}
-
-  registry_host:
-    description: "The registry host name, always `ghcr.io`"
-    value: ${{ steps.vars.outputs.registry_host }}
-
+    description: 'The image digest of the pushed image.'
+    value: ${{ steps.builder.outputs.digest }}
   image_path:
-    description: "The full image path including the tag, always with a leading slash, in the format `/owner/repo/image:tag` (or `/owner/repo:tag` when the package matches the repository name)"
-    value: ${{ steps.final_outputs.outputs.image_path }}
+    description: 'The primary path and tag of the generated/retagged image.'
+    value: ${{ steps.builder.outputs.image_path }}
 
 runs:
-  using: composite
+  using: 'composite'
   steps:
-    # Initialize variables.
-    - id: vars
+    - name: Deprecation warning
       shell: bash
-      env:
-        INPUT_PACKAGE: ${{ inputs.package }}
-        CONTEXT_REPO: ${{ github.event.repository.name }}
-        INPUT_TAGS: ${{ inputs.tags }}
       run: |
-        # Set variables.
-        set -euo pipefail
+        echo "::warning::This Action has moved to bcgov/actions/builder-ghcr. Please update your workflows to use bcgov/actions/builder-ghcr@vX.Y.Z instead."
 
-        # If package matches repo name, use simpler image_path
-        if [ "${INPUT_PACKAGE,,}" = "${CONTEXT_REPO,,}" ]; then
-          image_path="${{ github.repository }}"
-        else
-          image_path="${{ github.repository }}/${{ inputs.package }}"
-        fi
-        echo "image_path=${image_path,,}" >> $GITHUB_OUTPUT
-        echo "image_name=ghcr.io/${image_path,,}" >> $GITHUB_OUTPUT
-        echo "registry_host=ghcr.io" >> $GITHUB_OUTPUT
-
-
-        # Extract first tag for artifact naming (sanitized for artifact name compatibility).
-        # Fallback to 'artifact' if sanitized tag is empty.
-        first_tag=$(printf '%s\n' "${INPUT_TAGS}" | grep -v '^$' | head -n 1 | tr '[:upper:]' '[:lower:]' | tr -cd '[:alnum:]._-' || true)
-        
-        first_tag="${first_tag:-artifact}"
-        echo "first_tag=${first_tag}" >> $GITHUB_OUTPUT
-
-    # Send triggers to diff action
-    # Fork PRs: bcgov/action-diff-triggers automatically detects fork PR context from
-    # github.event.pull_request and handles diff computation correctly by comparing the
-    # fork's head branch against the base repository's target branch.
-    # External repos: Skip for external repo builds because diffing the current branch
-    # against another repository's branch is not meaningful in this context.
-    - id: diff
-      if: inputs.repository == github.repository
-      uses: bcgov/action-diff-triggers@a80e4b3cf77b7e05f84e74030e3bfa08b717a574 # v1.2.1
+    - name: Forward Action
+      id: builder
+      uses: bcgov/actions/builder-ghcr@main
       with:
+        package: ${{ inputs.package }}
+        build_context: ${{ inputs.build_context }}
+        build_file: ${{ inputs.build_file }}
+        build_args: ${{ inputs.build_args }}
+        secrets: ${{ inputs.secrets }}
+        target: ${{ inputs.target }}
+        image: ${{ inputs.image }}
+        tag_fallback: ${{ inputs.tag_fallback }}
+        tags: ${{ inputs.tags }}
         triggers: ${{ inputs.triggers }}
-        ref: ${{ inputs.diff_branch }}
-
-    # Log in to GHCR (for both retag and build operations)
-    # This must happen before manifest inspection in 'Check for builds' to support private images
-    - name: Log in to the Container registry
-      uses: docker/login-action@v4
-      with:
-        registry: ghcr.io
-        username: ${{ inputs.username }}
-        password: ${{ inputs.github_token }}
-
-    # Check if a build is required (steps.build.outputs.triggered=true|false)
-    - name: Check for builds
-      env:
-        URL_FALLBACK: ghcr.io/${{ steps.vars.outputs.image_path }}:${{ inputs.tag_fallback }}
-      id: build
-      shell: bash
-      run: |
-        # Check for builds
-        echo "::debug::Build decision logic:"
-        echo "::debug::  Input repository: ${{ inputs.repository }}"
-        echo "::debug::  GitHub repository: ${{ github.repository }}"
-        echo "::debug::  Diff triggered: ${{ steps.diff.outputs.triggered }}"
-        echo "::debug::  Tag fallback: ${{ inputs.tag_fallback }}"
-        echo "::debug::  Fallback URL: ${URL_FALLBACK}"
-        
-        triggered=true
-        fallback_digest=""
-        
-        if [ "${{ inputs.repository }}" != "${{ github.repository }}" ]; then
-          echo "Build triggered. External repository provided (diff skipped)."
-        elif [ "${{ steps.diff.outputs.triggered }}" == "true" ]; then
-          echo "Build triggered. Used bcgov/action-diff-triggers."
-        elif [ -z "${{ inputs.tag_fallback }}" ]; then
-          echo "Build triggered. No tag_fallback provided."
-        else
-          # Inspect manifest to verify existence and capture digest
-          MANIFEST=$(docker manifest inspect "${URL_FALLBACK}" 2>/dev/null || true)
-          if [[ -z "$MANIFEST" ]]; then
-            echo "Build triggered. Fallback tag (tag_fallback) not usable or not found."
-          else
-            echo "Container build not required - will retag existing image"
-            triggered=false
-            # Resolve the digest (handle multi-arch or single manifests)
-            # This returns the authoritative manifest/index digest directly from the registry
-            fallback_digest=$(docker buildx imagetools inspect "${URL_FALLBACK}" | grep "^Digest: " | awk "{print \$2}" || true)
-
-            if [[ -z "$fallback_digest" ]]; then
-              echo "::error::Failed to resolve immutable digest for fallback image ${URL_FALLBACK}. Recycled images MUST have a valid digest."
-              exit 1
-            fi
-            echo "::debug::Resolved fallback digest: ${fallback_digest}"
-          fi
-        fi
-        
-        echo "::debug::Final build decision: triggered=${triggered}"
-        echo "triggered=${triggered}" >> $GITHUB_OUTPUT
-        echo "fallback_digest=${fallback_digest}" >> $GITHUB_OUTPUT
-
-    # If a build is not required, reuse a previous image
-    - name: Recycle/retag Previous Images
-      uses: shrink/actions-docker-registry-tag@e6aaef25c595b6e0edd18bf4c7dbfea3abd43299 # v5
-      if: steps.build.outputs.triggered != 'true'
-      with:
-        registry: ghcr.io
-        repository: ${{ steps.vars.outputs.image_path }}
-        target: ${{ inputs.tag_fallback }}
-        tags: |
-          ${{ inputs.tags }}
-        token: ${{ inputs.github_token }}
-
-
-    # Checkout code for building - external repo (use default branch)
-    - name: Checkout external repository
-      if: steps.build.outputs.triggered == 'true' && inputs.repository != github.repository
-      uses: actions/checkout@v7
-      with:
+        metadata_tags: ${{ inputs.metadata_tags }}
+        metadata_flavor: ${{ inputs.metadata_flavor }}
+        github_token: ${{ inputs.github_token }}
         repository: ${{ inputs.repository }}
-        token: ${{ inputs.github_token }}
-        persist-credentials: false
-        path: .builder-context
-        clean: false
-        # No ref specified = default branch of that repo
-
-    # Checkout code for building - same repo PR (use PR head for fork support)
-    - name: Checkout PR head
-      if: steps.build.outputs.triggered == 'true' && inputs.repository == github.repository
-      uses: actions/checkout@v7
-      with:
-        repository: ${{ github.event.pull_request.head.repo.full_name || github.repository }}
-        ref: ${{ github.event.pull_request.head.sha || github.ref }}
-        token: ${{ inputs.github_token }}
-        persist-credentials: false
-        path: .builder-context
-        clean: false
-
-    - name: Set up Docker Buildx
-      if: steps.build.outputs.triggered == 'true'
-      uses: docker/setup-buildx-action@v4
-
-    - name: Prepare Container Metadata tags
-      id: meta
-      if: steps.build.outputs.triggered == 'true' && inputs.metadata_tags == 'true'
-      uses: docker/metadata-action@80c7e94dd9b9319bd5eb7a0e0fe9291e23a2a2e9 # v6
-      with:
-        images: ${{ steps.vars.outputs.image_name }}
-        flavor: ${{ inputs.metadata_flavor }}
-        tags: ${{ inputs.metadata_tag_rules }}
-
-    - name: Merge tags
-      id: tags
-      if: steps.build.outputs.triggered == 'true'
-      shell: bash
-      env:
-        INPUT_TAGS: ${{ inputs.tags }}
-        META_TAGS: ${{ steps.meta.outputs.tags || '' }}
-        META_LABELS: ${{ steps.meta.outputs.labels || '' }}
-        META_ANNOTATIONS: ${{ steps.meta.outputs.annotations || '' }}
-      run: |
-        # Merge metadata tags with custom tags
-        set -euo pipefail
-
-        # Start with custom tags (convert from multiline to comma-separated)
-        # Handle empty inputs gracefully
-        custom_tags=""
-        if [ -n "${INPUT_TAGS}" ]; then
-          # Filter out empty lines and process tags; use printf to safely handle multiline input
-          filtered_tags=$(printf '%s\n' "${INPUT_TAGS}" | grep -v '^$' || true)
-          if [ -n "${filtered_tags}" ]; then
-            custom_tags=$(printf '%s\n' "${filtered_tags}" | sed "s|^|ghcr.io/${{ steps.vars.outputs.image_path }}:|" | tr '[:upper:]' '[:lower:]' | paste -sd,)
-          fi
-        fi
-
-        # If metadata tags are enabled, merge them
-        if [ "${{ inputs.metadata_tags }}" == "true" ]; then
-          # Convert metadata tags from newline-separated to comma-separated (if any)
-          # Use printf to safely handle multiline output from metadata-action
-          meta_tags=""
-          if [ -n "${META_TAGS}" ]; then
-            meta_tags=$(printf '%s\n' "${META_TAGS}" | tr '\n' ',' | sed 's/,$//')
-          fi
-          
-          # Combine tags (prefer custom tags first, then metadata tags)
-          if [ -n "${custom_tags}" ] && [ -n "${meta_tags}" ]; then
-            final_tags="${custom_tags},${meta_tags}"
-          elif [ -n "${meta_tags}" ]; then
-            final_tags="${meta_tags}"
-          else
-            final_tags="${custom_tags}"
-          fi
-          
-          # Pass through labels and annotations from metadata-action (even if no tags were generated)
-          # Use heredoc to safely handle multiline/special characters
-          echo "labels<<EOF" >> $GITHUB_OUTPUT
-          echo "${META_LABELS}" >> $GITHUB_OUTPUT
-          echo "EOF" >> $GITHUB_OUTPUT
-          echo "annotations<<EOF" >> $GITHUB_OUTPUT
-          echo "${META_ANNOTATIONS}" >> $GITHUB_OUTPUT
-          echo "EOF" >> $GITHUB_OUTPUT
-        else
-          final_tags="${custom_tags}"
-          # Empty labels and annotations when metadata_tags is disabled
-          echo "labels=" >> $GITHUB_OUTPUT
-          echo "annotations=" >> $GITHUB_OUTPUT
-        fi
-
-        # Ensure at least one tag is present; fallback to :latest if empty
-        if [ -z "${final_tags}" ]; then
-          # Warn if metadata_tags is enabled but no tags were generated (likely configuration error)
-          if [ "${{ inputs.metadata_tags }}" == "true" ]; then
-            echo "::warning::metadata_tags is enabled but no tags were generated. This may indicate missing or invalid metadata_tag_rules. Falling back to :latest tag."
-          fi
-          final_tags="ghcr.io/${{ steps.vars.outputs.image_path }}:latest"
-        fi
-
-        echo "final_tags=${final_tags}" >> $GITHUB_OUTPUT
-
-    - name: Build and push ${{ inputs.package }} Docker image
-      id: build_and_push
-      if: steps.build.outputs.triggered == 'true'
-      uses: docker/build-push-action@v7
-      with:
-        context: .builder-context/${{ inputs.build_context || inputs.package }}
-        file: .builder-context/${{ inputs.build_file || format('{0}/Dockerfile', inputs.package) }}
-        push: true
-        tags: ${{ steps.tags.outputs.final_tags }}
-        labels: ${{ steps.tags.outputs.labels }}
-        annotations: ${{ steps.tags.outputs.annotations }}
-        cache-from: type=registry,ref=ghcr.io/${{ steps.vars.outputs.image_path }}:buildcache
-        cache-to: type=registry,ref=ghcr.io/${{ steps.vars.outputs.image_path }}:buildcache,mode=max
-        build-args: ${{ inputs.build_args }}
-        secrets: |
-          ${{ inputs.secrets }}
-
-    - name: Generate SBOM
-      id: sbom
-      if: steps.build.outputs.triggered == 'true' && inputs.sbom == 'true'
-      continue-on-error: true
-      shell: bash
-      run: |
-        set +e -u
-
-        # Install Syft
-        curl -sSfL https://raw.githubusercontent.com/anchore/syft/main/install.sh | sh -s -- -b /usr/local/bin
-
-        IMAGE="ghcr.io/${{ steps.vars.outputs.image_path }}@${{ steps.build_and_push.outputs.digest }}"
-        PACKAGE_SANITIZED=$(echo "${{ inputs.package }}" | tr '/:' '-' | tr -d ' ')
-        echo "package_sanitized=${PACKAGE_SANITIZED}" >> $GITHUB_OUTPUT
-
-        mkdir -p sboms
-
-        # Check image accessibility
-        if ! docker manifest inspect "$IMAGE" >/dev/null 2>&1; then
-          echo "::warning::Cannot access image $IMAGE. SBOM generation will be skipped."
-          echo "sbom_files_exist=false" >> $GITHUB_OUTPUT
-          exit 0
-        fi
-
-        # Generate both formats in a single scan
-        CYCLONEDX_FILE="sboms/${PACKAGE_SANITIZED}-cyclonedx.json"
-        SPDX_FILE="sboms/${PACKAGE_SANITIZED}-spdx.json"
-        stderr_file=$(mktemp)
-
-        syft scan "$IMAGE" \
-          -o cyclonedx-json="$CYCLONEDX_FILE" \
-          -o spdx-json="$SPDX_FILE" \
-          2>"$stderr_file"
-
-        exit_code=$?
-        stderr=$(cat "$stderr_file")
-        rm -f "$stderr_file"
-
-        if [ $exit_code -eq 0 ]; then
-          if [ -n "$stderr" ]; then
-            echo "::notice::Syft warnings: ${stderr}"
-          fi
-          echo "✓ SBOMs generated successfully (CycloneDX and SPDX)"
-          echo "sbom_files_exist=true" >> $GITHUB_OUTPUT
-        else
-          error_msg=$(echo "$stderr" | head -c 500)
-          echo "::warning::SBOM generation failed: ${error_msg}"
-          rm -f "$CYCLONEDX_FILE" "$SPDX_FILE"
-          echo "sbom_files_exist=false" >> $GITHUB_OUTPUT
-          echo "::warning::No SBOM files were generated. Workflow will continue without SBOM artifacts."
-        fi
-
-    - name: Upload SBOMs
-      uses: actions/upload-artifact@v7
-      if: steps.build.outputs.triggered == 'true' && inputs.sbom == 'true' && steps.sbom.outputs.sbom_files_exist == 'true'
-      continue-on-error: true
-      with:
-        name: sboms-${{ steps.sbom.outputs.package_sanitized }}-${{ steps.vars.outputs.first_tag }}
-        path: sboms/
-        if-no-files-found: warn
-
-    - name: Check attestation permissions
-      id: attest_check
-      if: steps.build.outputs.triggered == 'true'
-      shell: bash
-      run: |
-        if [ -z "${ACTIONS_ID_TOKEN_REQUEST_URL:-}" ]; then
-          echo "can_attest=false" >> "$GITHUB_OUTPUT"
-          echo "::warning::Attestation skipped. Add permissions: id-token: write, attestations: write"
-        else
-          echo "can_attest=true" >> "$GITHUB_OUTPUT"
-        fi
-
-    - name: Attest
-      continue-on-error: true
-      id: attest
-      if: steps.build.outputs.triggered == 'true' && steps.attest_check.outputs.can_attest == 'true'
-      uses: actions/attest-build-provenance@v4.1.0
-      with:
-        subject-name: ghcr.io/${{ steps.vars.outputs.image_path }}
-        subject-digest: ${{ steps.build_and_push.outputs.digest }}
-
-
-
-    - name: Finalize Outputs
-      id: final_outputs
-      shell: bash
-      run: |
-        if [ "${{ steps.build.outputs.triggered }}" == "true" ]; then
-          echo "digest=${{ steps.build_and_push.outputs.digest }}" >> $GITHUB_OUTPUT
-          # Derive image_path from the actual tags generated/pushed
-          # steps.tags.outputs.final_tags is a comma-separated list of full URLs
-          full_primary_image=$(echo "${{ steps.tags.outputs.final_tags }}" | cut -d, -f1)
-          image_path=$(echo "${full_primary_image}" | sed 's|^ghcr.io||')
-        else
-          echo "digest=${{ steps.build.outputs.fallback_digest }}" >> $GITHUB_OUTPUT
-          # For retagged images, use the first tag from inputs.tags or fallback
-          tag=$(printf '%s\n' "${{ inputs.tags }}" | grep -v '^$' | head -n 1 | tr '[:upper:]' '[:lower:]' | tr -cd '[:alnum:]._-' || true)
-          tag="${tag:-${{ inputs.tag_fallback }}}"
-          tag="${tag:-latest}"
-          image_path="/${{ steps.vars.outputs.image_path }}:${tag}"
-        fi
-        echo "image_path=${image_path}" >> $GITHUB_OUTPUT
-
-    - name: Print summary outputs
-      if: always()
-      shell: bash
-      run: |
-        echo "---- Build Summary ----"
-        echo "triggered: ${{ steps.build.outputs.triggered }}"
-        echo "digest: ${{ steps.final_outputs.outputs.digest }}"
-        echo "registry_host: ${{ steps.vars.outputs.registry_host }}"
-        echo "image_path: ${{ steps.final_outputs.outputs.image_path }}"
-
-        # Add to GitHub Job Summary
-        echo "### Container Build Summary" >> $GITHUB_STEP_SUMMARY
-        echo "| Output | Value |" >> $GITHUB_STEP_SUMMARY
-        echo "| --- | --- |" >> $GITHUB_STEP_SUMMARY
-        echo "| **triggered** | \`${{ steps.build.outputs.triggered }}\` |" >> $GITHUB_STEP_SUMMARY
-        echo "| **digest** | \`${{ steps.final_outputs.outputs.digest }}\` |" >> $GITHUB_STEP_SUMMARY
-        echo "| **registry_host** | \`${{ steps.vars.outputs.registry_host }}\` |" >> $GITHUB_STEP_SUMMARY
-        echo "| **image_path** | \`${{ steps.final_outputs.outputs.image_path }}\` |" >> $GITHUB_STEP_SUMMARY
-
-        if [ "${{ steps.build.outputs.triggered }}" == "true" ]; then
-          echo "tags: ${{ steps.tags.outputs.final_tags }}"
-          echo "| **tags** | \`${{ steps.tags.outputs.final_tags }}\` |" >> $GITHUB_STEP_SUMMARY
-          if [ "${{ steps.attest.outcome }}" == "failure" ]; then
-            echo "::warning::Attestation failed. Check the 'Attest' step logs for details, and ensure this job has permissions: id-token: write, attestations: write in your workflow 'permissions' block."
-            echo "> [!WARNING]" >> $GITHUB_STEP_SUMMARY
-            echo "> Attestation failed. Check logs for details." >> $GITHUB_STEP_SUMMARY
-          fi
-        else
-          echo "retagged: ${{ inputs.tag_fallback }} -> ${{ inputs.tags }}"
-          echo "| **retagged** | \`${{ inputs.tag_fallback }} -> ${{ inputs.tags }}\` |" >> $GITHUB_STEP_SUMMARY
-        fi
-        echo "-----------------------"
