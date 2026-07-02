@@ -79,7 +79,7 @@ runs:
 
     - name: Forward Action
       id: builder
-      uses: bcgov/actions/builder-ghcr@main
+      uses: bcgov/actions/builder-ghcr@v0.2.0
       with:
         package: ${{ inputs.package }}
         build_context: ${{ inputs.build_context }}
