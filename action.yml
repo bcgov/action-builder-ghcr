@@ -26,10 +26,10 @@ inputs:
   tag_fallback:
     description: 'Fallback tag to use if the image exists. Used for fallback pull/retag.'
     required: false
-    default: 'latest'
   tags:
     description: 'Multi-line list of tags to push.'
-    required: true
+    required: false
+    default: ${{ github.event.number }}
   triggers:
     description: 'Multi-line git diff paths to evaluate. If no changes match, build is skipped and fallback image is retagged.'
     required: false
@@ -53,6 +53,18 @@ outputs:
   digest:
     description: 'The image digest of the pushed image.'
     value: ${{ steps.builder.outputs.digest }}
+  triggered:
+    description: 'Did a deployment trigger? [true|false]'
+    value: ${{ steps.builder.outputs.triggered }}
+  labels:
+    description: 'Generated OCI labels'
+    value: ${{ steps.builder.outputs.labels }}
+  annotations:
+    description: 'Generated OCI annotations'
+    value: ${{ steps.builder.outputs.annotations }}
+  registry_host:
+    description: 'The registry host name, always ghcr.io'
+    value: ${{ steps.builder.outputs.registry_host }}
   image_path:
     description: 'The primary path and tag of the generated/retagged image.'
     value: ${{ steps.builder.outputs.image_path }}
@@ -63,7 +75,7 @@ runs:
     - name: Deprecation warning
       shell: bash
       run: |
-        echo "::warning::This Action has moved to bcgov/actions/builder-ghcr. Please update your workflows to use bcgov/actions/builder-ghcr@vX.Y.Z instead."
+        echo "::warning::This Action has moved to bcgov/actions/builder-ghcr. Please update your workflows to use bcgov/actions/builder-ghcr@v0.2.0 instead."
 
     - name: Forward Action
       id: builder
