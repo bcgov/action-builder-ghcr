@@ -114,7 +114,7 @@ runs:
     - name: Migration Warning
       shell: bash
       run: |
-        echo "::warning::This Action has moved to bcgov/actions/builder-ghcr. Please update your workflow to use bcgov/actions/builder-ghcr instead."
+        echo "::warning title=Action moved::This action has moved to bcgov/actions/builder. Update your workflow to use bcgov/actions/builder pinned to a release."
 
     # Initialize variables.
     - id: vars
