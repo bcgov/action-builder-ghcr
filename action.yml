@@ -111,10 +111,11 @@ outputs:
 runs:
   using: composite
   steps:
-    - name: Migration Warning
+    - name: Action moved
       shell: bash
       run: |
-        echo "::warning::This Action has moved to bcgov/actions/builder. Please update your workflow to use bcgov/actions/builder instead."
+        echo "::warning title=Action moved::This Action has moved to bcgov/actions/builder. Update workflows to bcgov/actions/builder (pin a release, not @main). Removed inputs: metadata_tags, metadata_flavor, metadata_tag_rules. See https://github.com/bcgov/actions/tree/main/builder"
+
 
     # Initialize variables.
     - id: vars
