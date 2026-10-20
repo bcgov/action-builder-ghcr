@@ -16,7 +16,7 @@ jobs:
   # QuickStart apps build from the same dirs as their Dockerfiles
   build:
     name: Build
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     steps:
       - uses: actions/checkout@v7
       - id: build
@@ -50,7 +50,7 @@ jobs:
       attestations: none
       id-token: none
       packages: write
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     steps:
       - uses: actions/checkout@v7
       - id: no-attestation
@@ -83,7 +83,7 @@ jobs:
   # FOM apps build from repo root, above their Dockerfiles (extra params)
   advanced:
     name: Advanced
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     steps:
       - uses: actions/checkout@v7
       - id: advanced
@@ -118,7 +118,7 @@ jobs:
   # Test single-package repo format (no package in path)
   single-package:
     name: Single Package
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     steps:
       - uses: actions/checkout@v7
       - id: single-package
@@ -152,7 +152,7 @@ jobs:
   # Test metadata tags feature
   metadata-tags:
     name: Metadata Tags
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     steps:
       - uses: actions/checkout@v7
       - id: metadata-tags
@@ -202,7 +202,7 @@ jobs:
     name: PR Results
     needs: [advanced, build, no-attestation, single-package, metadata-tags]
     if: always()
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     steps:
       - if: contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled')
         run: echo "At least one job has failed or was cancelled." && exit 1
